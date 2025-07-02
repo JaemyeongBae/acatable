@@ -1,0 +1,174 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Advanced React Development Rules with Performance & Stability Focus
+
+## Core Development Principles
+
+### 1. DEPENDENCY ARRAY MASTERY
+**ALWAYS analyze useEffect dependencies before implementation:**
+- [ ] Identify ALL variables used inside useEffect
+- [ ] Check if objects/arrays are recreated on each render
+- [ ] Use primitive values in dependencies when possible
+- [ ] Apply useMemo/useCallback ONLY when measurable performance benefit exists
+- [ ] Prefer stable references over complex memoization
+
+**Example Pattern:**
+```typescript
+// ❌ WRONG - Object recreated every render
+useEffect(() => {}, [filters])
+
+// ✅ CORRECT - Stable primitive dependency
+useEffect(() => {}, [academyId])
+```
+
+### 2. COMPONENT LIFECYCLE SAFETY
+**MANDATORY cleanup patterns for async operations:**
+```typescript
+useEffect(() => {
+  let isMounted = true
+  
+  const asyncOperation = async () => {
+    if (!isMounted) return
+    // ... async work
+    if (!isMounted) return
+    setState(result)
+  }
+  
+  return () => { isMounted = false }
+}, [])
+```
+
+### 3. STATE MANAGEMENT PATTERNS
+**Follow strict state update protocols:**
+- [ ] Never update state in unmounted components
+- [ ] Use functional updates for state dependent on previous state
+- [ ] Batch related state updates using single setState call
+- [ ] Implement loading/error states for ALL async operations
+
+### 4. API INTEGRATION STANDARDS
+**Robust API calling patterns:**
+```typescript
+const [data, setData] = useState(null)
+const [loading, setLoading] = useState(true)
+const [error, setError] = useState(null)
+
+// Single responsibility: one API call per useEffect
+useEffect(() => {
+  let cancelled = false
+  
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await api.call()
+      if (!cancelled) setData(result)
+    } catch (err) {
+      if (!cancelled) setError(err)
+    } finally {
+      if (!cancelled) setLoading(false)
+    }
+  }
+  
+  return () => { cancelled = true }
+}, [stableId])
+```
+
+## Database & Backend Integration
+
+### 5. PRISMA CONSISTENCY RULES
+**Enforce single source of truth:**
+- [ ] Use ONLY standard `@prisma/client` import path
+- [ ] Never mix custom output paths with standard paths
+- [ ] Run `prisma generate` after ANY schema changes
+- [ ] Clear build cache (`rm -rf .next`) when changing Prisma config
+
+### 6. TYPE SAFETY ENFORCEMENT
+**Comprehensive TypeScript coverage:**
+- [ ] Define explicit interfaces for ALL API responses
+- [ ] Use discriminated unions for different states (loading | success | error)
+- [ ] Never use `any` type - use `unknown` and type guards instead
+- [ ] Implement runtime validation for external data
+
+## Performance & Scalability
+
+### 7. RENDERING OPTIMIZATION
+**Prevent unnecessary re-renders:**
+- [ ] Memoize expensive calculations with useMemo
+- [ ] Extract static data outside component scope
+- [ ] Use React.memo for pure components only
+- [ ] Profile components with React DevTools before optimizing
+
+### 8. ERROR BOUNDARY IMPLEMENTATION
+**Comprehensive error handling:**
+```typescript
+// Implement error boundaries for component trees
+// Add error recovery mechanisms
+// Log errors to monitoring service
+// Provide user-friendly fallback UI
+```
+
+## Development Workflow
+
+### 9. ITERATIVE DEVELOPMENT PROTOCOL
+**Before writing ANY component:**
+1. **Design Phase:** Sketch component lifecycle and data flow
+2. **Interface Phase:** Define all props, state, and API contracts
+3. **Implementation Phase:** Write minimal viable version
+4. **Testing Phase:** Test edge cases and error scenarios
+5. **Optimization Phase:** Profile and optimize if needed
+
+### 10. DEBUGGING STANDARDS
+**Systematic issue resolution:**
+- [ ] Reproduce issue in isolation
+- [ ] Check React DevTools for re-render patterns
+- [ ] Verify network requests in browser DevTools
+- [ ] Add strategic console.logs before assuming root cause
+- [ ] Test fix in both development and production builds
+
+## Code Quality Gates
+
+### 11. PRE-COMMIT CHECKLIST
+Before any commit, verify:
+- [ ] No console.errors in browser
+- [ ] All TypeScript errors resolved
+- [ ] Component renders without warnings
+- [ ] Loading states work correctly
+- [ ] Error states display properly
+- [ ] No memory leaks (check with React DevTools Profiler)
+
+### 12. ARCHITECTURAL DECISION DOCUMENTATION
+**For complex components, document:**
+- Why specific patterns were chosen
+- Trade-offs made during implementation
+- Known limitations and future improvements
+- Dependencies between components
+
+## React-Specific Best Practices
+
+### 13. HOOKS COMPOSITION RULES
+- [ ] Keep custom hooks focused on single responsibility
+- [ ] Return stable objects from custom hooks using useMemo
+- [ ] Avoid deep dependency chains in useEffect
+- [ ] Use useCallback only for expensive functions passed as props
+
+### 14. COMPONENT COMPOSITION
+- [ ] Prefer composition over inheritance
+- [ ] Keep components under 200 lines when possible
+- [ ] Extract business logic into custom hooks
+- [ ] Use children prop for flexible layouts
+
+## Monitoring & Observability
+
+### 15. PRODUCTION READINESS
+- [ ] Implement proper error boundaries
+- [ ] Add performance monitoring
+- [ ] Include accessibility attributes
+- [ ] Test on multiple browsers and devices
+- [ ] Validate with real data volumes
+
+---
+
+**GOLDEN RULE:** When in doubt, choose simplicity over cleverness. A working simple solution beats a broken complex one every time.

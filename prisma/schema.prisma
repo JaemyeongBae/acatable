@@ -1,0 +1,273 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// 시간표 관리 시스템 데이터베이스 스키마
+// 목적: 학원 시간표 생성, 관리, 조회 기능
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ==========================================
+// 기본 정보 테이블
+// ==========================================
+
+// 학원 정보 테이블
+model Academy {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique  // 학원 고유 코드 (초대용)
+  address   String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 관계 설정
+  users       User[]
+  subjects    Subject[]
+  instructors Instructor[]
+  classrooms  Classroom[]
+  classTypes  ClassType[]
+  schedules   Schedule[]
+
+  @@map("academies")
+}
+
+// 사용자 정보 테이블
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  role      UserRole @default(STUDENT)
+  academyId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 관계 설정
+  academy          Academy           @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  instructorProfile Instructor?      // 강사인 경우 강사 프로필 연결
+  studentSchedules StudentSchedule[] // 학생인 경우 수강 시간표
+
+  // 인덱스 설정
+  @@index([academyId])
+  @@index([email])
+  @@map("users")
+}
+
+// 사용자 역할 열거형
+enum UserRole {
+  OWNER      // 원장 - 전체 권한
+  ADMIN      // 행정실장 - 편집 권한  
+  INSTRUCTOR // 강사 - 본인 강의 조회/편집
+  STUDENT    // 학생 - 조회만 가능
+}
+
+// ==========================================
+// 학원 운영 관련 테이블
+// ==========================================
+
+// 과목 정보 테이블
+model Subject {
+  id        String   @id @default(cuid())
+  name      String   // 예: 수학, 영어, 과학
+  color     String?  // 시간표 표시용 색상 (HEX)
+  academyId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 관계 설정
+  academy   Academy    @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+
+  // 인덱스 설정
+  @@index([academyId])
+  @@unique([academyId, name]) // 학원 내에서 과목명 중복 방지
+  @@map("subjects")
+}
+
+// 강사 정보 테이블
+model Instructor {
+  id          String   @id @default(cuid())
+  userId      String   @unique // User 테이블과 1:1 관계
+  academyId   String
+  specialties String   // 전문 과목들 (JSON 문자열로 저장)
+  bio         String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 관계 설정
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academy   Academy      @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+
+  // 인덱스 설정
+  @@index([academyId])
+  @@index([userId])
+  @@map("instructors")
+}
+
+// 강의실 정보 테이블
+model Classroom {
+  id        String   @id @default(cuid())
+  name      String   // 예: A강의실, 컴퓨터실
+  capacity  Int?     // 최대 수용 인원
+  equipment String?  // 보유 장비 (JSON 문자열로 저장)
+  floor     Int?     // 층수
+  location  String?  // 위치 설명
+  academyId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 관계 설정
+  academy   Academy    @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+
+  // 인덱스 설정
+  @@index([academyId])
+  @@unique([academyId, name]) // 학원 내에서 강의실명 중복 방지
+  @@map("classrooms")
+}
+
+// 수업 유형 테이블
+model ClassType {
+  id          String   @id @default(cuid())
+  name        String   // 예: 정규반, 특강, 보충수업
+  color       String?  // 시간표 표시용 색상
+  description String?  // 수업 유형 설명
+  academyId   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 관계 설정
+  academy   Academy    @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+
+  // 인덱스 설정
+  @@index([academyId])
+  @@unique([academyId, name]) // 학원 내에서 수업유형명 중복 방지
+  @@map("class_types")
+}
+
+// ==========================================
+// 시간표 관리 테이블
+// ==========================================
+
+// 메인 시간표 테이블
+model Schedule {
+  id          String    @id @default(cuid())
+  title       String    // 강의명 (예: 고1 수학A반)
+  description String?
+  
+  // 시간 정보
+  dayOfWeek   DayOfWeek // 요일 (월~일)
+  startTime   String    // 시작 시간 (HH:MM 형식)
+  endTime     String    // 종료 시간 (HH:MM 형식)
+  
+  // 연결 정보
+  academyId    String
+  subjectId    String
+  instructorId String
+  classroomId  String
+  classTypeId  String
+  
+  // 상태 및 메타데이터
+  isActive     Boolean   @default(true)
+  maxStudents  Int?      // 최대 수강 인원
+  currentStudents Int    @default(0) // 현재 수강 인원
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // 관계 설정
+  academy         Academy           @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  subject         Subject           @relation(fields: [subjectId], references: [id])
+  instructor      Instructor        @relation(fields: [instructorId], references: [id])
+  classroom       Classroom         @relation(fields: [classroomId], references: [id])
+  classType       ClassType         @relation(fields: [classTypeId], references: [id])
+  studentSchedules StudentSchedule[] // 수강 학생 목록
+  history         ScheduleHistory[] // 변경 이력
+
+  // 인덱스 설정 (성능 최적화)
+  @@index([academyId])
+  @@index([dayOfWeek])
+  @@index([instructorId])
+  @@index([classroomId])
+  @@index([subjectId])
+  
+  // 복합 인덱스 (시간 충돌 검사용)
+  @@index([classroomId, dayOfWeek, startTime, endTime])
+  @@index([instructorId, dayOfWeek, startTime, endTime])
+  
+  @@map("schedules")
+}
+
+// 요일 열거형
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+// ==========================================
+// 학생 관리 테이블
+// ==========================================
+
+// 학생별 수강 시간표 연결 테이블
+model StudentSchedule {
+  id         String   @id @default(cuid())
+  userId     String   // 학생 User ID
+  scheduleId String   // 시간표 ID
+  enrolledAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  // 관계 설정
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  // 인덱스 설정
+  @@unique([userId, scheduleId]) // 학생-시간표 중복 등록 방지
+  @@index([userId])
+  @@index([scheduleId])
+  @@map("student_schedules")
+}
+
+// ==========================================
+// 이력 관리 테이블
+// ==========================================
+
+// 시간표 변경 이력 테이블
+model ScheduleHistory {
+  id         String   @id @default(cuid())
+  scheduleId String
+  action     String   // CREATE, UPDATE, DELETE
+  oldData    String?  // 변경 전 데이터 (JSON)
+  newData    String?  // 변경 후 데이터 (JSON)
+  changedBy  String   // 변경한 사용자 ID
+  changedAt  DateTime @default(now())
+
+  // 관계 설정
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  // 인덱스 설정
+  @@index([scheduleId])
+  @@index([changedAt])
+  @@map("schedule_history")
+}
