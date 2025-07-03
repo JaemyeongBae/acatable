@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { apiResponse } from '@/lib/api/response'
+import { createSuccessResponse, createNotFoundResponse, createInternalServerErrorResponse } from '@/lib/api/response'
 
 /**
  * 학원 개별 조회
@@ -34,21 +34,13 @@ export async function GET(
     })
 
     if (!academy) {
-      return NextResponse.json(
-        apiResponse(false, null, '학원을 찾을 수 없습니다'),
-        { status: 404 }
-      )
+      return createNotFoundResponse('학원')
     }
 
-    return NextResponse.json(
-      apiResponse(true, academy, '학원 조회 성공')
-    )
+    return createSuccessResponse(academy, '학원 조회 성공')
 
   } catch (error) {
     console.error('학원 조회 실패:', error)
-    return NextResponse.json(
-      apiResponse(false, null, '학원 조회 중 오류가 발생했습니다'),
-      { status: 500 }
-    )
+    return createInternalServerErrorResponse(error)
   }
 }

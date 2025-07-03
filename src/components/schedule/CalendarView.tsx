@@ -399,7 +399,7 @@ export default function CalendarView({
   }, [isDragging, draggedSchedule, dragOffset, dragStart, dragCurrent, getTimeAndDayFromBlockPosition, getTimeAndDayFromPosition, onScheduleCreate, onScheduleUpdate])
 
   // 드래그 시작
-  const handleMouseDown = useCallback((e: React.MouseEvent, schedule?: Schedule) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, schedule?: any) => {
     // 읽기 전용 모드에서는 드래그 비활성화
     if (isReadOnly) return
     
@@ -420,7 +420,7 @@ export default function CalendarView({
       
       // 스케줄의 실제 시작 시간과 요일을 기준으로 설정 (마우스 위치가 아닌)
       const scheduleStartTime = timeToMinutes(schedule.startTime)
-      const scheduleDay = DAY_OF_WEEK_TO_NUMBER[schedule.dayOfWeek]
+      const scheduleDay = schedule.dayOfWeek in DAY_OF_WEEK_TO_NUMBER ? DAY_OF_WEEK_TO_NUMBER[schedule.dayOfWeek as DayOfWeek] : 0
       
       // 드래그 시작과 현재 위치를 스케줄의 실제 위치로 설정
       setDragStart({ day: scheduleDay, time: scheduleStartTime })
@@ -513,7 +513,7 @@ export default function CalendarView({
   }, [isDragging, dragStart, dragCurrent, draggedSchedule, onScheduleCreate, onScheduleUpdate])
 
   // 시간표를 렌더링하는 함수
-  const renderSchedule = (schedule: Schedule, dayIndex: number) => {
+  const renderSchedule = (schedule: any, dayIndex: number) => {
     if (!schedule || !schedule.startTime || !schedule.endTime) {
       return null
     }
@@ -531,28 +531,35 @@ export default function CalendarView({
     return (
       <div
         key={schedule.id}
-        className={`absolute left-1 right-1 bg-blue-100 border border-blue-300 rounded p-1 transition-colors z-10 ${
+        className={`absolute left-1 right-1 bg-blue-100 border border-blue-300 rounded transition-colors z-10 ${
           isReadOnly ? 'cursor-pointer hover:bg-blue-150' : 'cursor-move hover:bg-blue-200'
         }`}
         style={{
           top: `${top}px`,
-          height: `${height}px`,
-          fontSize: '12px'
+          height: `${Math.max(height, 50)}px`,
+          padding: '9px'
         }}
-        onMouseDown={(e) => {
-          e.stopPropagation()
-          if (!isReadOnly) {
-            handleMouseDown(e, schedule)
-          }
-        }}
-        onClick={(e) => {
-          e.stopPropagation()
-          onScheduleClick?.(schedule)
-        }}
+        onMouseDown={(e) => handleMouseDown(e, schedule)}
+        onClick={() => onScheduleClick?.(schedule)}
       >
-        <div className="font-semibold truncate">{schedule.title}</div>
-        <div className="text-xs text-gray-600 truncate">
-          {typeof schedule.startTime === 'string' ? schedule.startTime : schedule.startTime.toTimeString().slice(0, 5)} - {typeof schedule.endTime === 'string' ? schedule.endTime : schedule.endTime.toTimeString().slice(0, 5)}
+        {/* 첫 번째 줄: 시간 */}
+        <div className="text-xs text-gray-700 mb-1">
+          {schedule.startTime} - {schedule.endTime}
+        </div>
+        
+        {/* 두 번째 줄: 강좌명 (굵게) */}
+        <div className="font-bold text-xs text-gray-900 truncate mb-1">
+          {schedule.title}
+        </div>
+        
+        {/* 세 번째 줄: 강사명 (좌측, 굵게) + 강의실명 (우측) */}
+        <div className="flex justify-between items-start">
+          <div className="font-bold text-xs text-gray-700 truncate flex-1 mr-3">
+            {schedule.instructor ? schedule.instructor.name : '강사 미정'}
+          </div>
+          <div className="text-xs text-gray-600 whitespace-nowrap">
+            {schedule.classroom ? schedule.classroom.name : '강의실 미정'}
+          </div>
         </div>
       </div>
     )

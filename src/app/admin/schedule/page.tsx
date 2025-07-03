@@ -8,7 +8,6 @@ import Link from 'next/link'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import ScheduleForm from '@/components/schedule/ScheduleForm'
-import ScheduleGrid from '@/components/schedule/ScheduleGrid'
 import CalendarView from '@/components/schedule/CalendarView'
 import { DayOfWeek } from '@/types'
 import ScheduleDetailModal from '@/components/schedule/ScheduleDetailModal'
@@ -35,8 +34,7 @@ interface FilterOptions {
 }
 
 export default function AdminSchedulePage() {
-  // 뷰 모드 상태
-  const [viewMode, setViewMode] = useState<'calendar' | 'grid'>('calendar')
+  // 뷰 모드 상태 - 캘린더 뷰 고정
   const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'day'>('week')
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
   
@@ -283,66 +281,41 @@ export default function AdminSchedulePage() {
           <div className="flex items-center space-x-4">
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
-                onClick={() => setViewMode('calendar')}
+                onClick={() => setCalendarViewMode('week')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'calendar' 
+                  calendarViewMode === 'week' 
                     ? 'bg-white text-gray-900 shadow-sm' 
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                캘린더 뷰
+                주간
               </button>
               <button
-                onClick={() => setViewMode('grid')}
+                onClick={() => setCalendarViewMode('day')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'grid' 
+                  calendarViewMode === 'day' 
                     ? 'bg-white text-gray-900 shadow-sm' 
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                그리드 뷰
+                일간
               </button>
+              {calendarViewMode === 'day' && (
+                <select
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+                  className="ml-2 px-3 py-1 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="MONDAY">월요일</option>
+                  <option value="TUESDAY">화요일</option>
+                  <option value="WEDNESDAY">수요일</option>
+                  <option value="THURSDAY">목요일</option>
+                  <option value="FRIDAY">금요일</option>
+                  <option value="SATURDAY">토요일</option>
+                  <option value="SUNDAY">일요일</option>
+                </select>
+              )}
             </div>
-            
-            {viewMode === 'calendar' && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setCalendarViewMode('week')}
-                  className={`px-3 py-1 rounded text-sm ${
-                    calendarViewMode === 'week' 
-                      ? 'bg-blue-100 text-blue-700' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  주간
-                </button>
-                <button
-                  onClick={() => setCalendarViewMode('day')}
-                  className={`px-3 py-1 rounded text-sm ${
-                    calendarViewMode === 'day' 
-                      ? 'bg-blue-100 text-blue-700' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  일간
-                </button>
-                {calendarViewMode === 'day' && (
-                  <select
-                    value={selectedDay}
-                    onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
-                    className="ml-2 px-3 py-1 border border-gray-300 rounded-md text-sm"
-                  >
-                    <option value="MONDAY">월요일</option>
-                    <option value="TUESDAY">화요일</option>
-                    <option value="WEDNESDAY">수요일</option>
-                    <option value="THURSDAY">목요일</option>
-                    <option value="FRIDAY">금요일</option>
-                    <option value="SATURDAY">토요일</option>
-                    <option value="SUNDAY">일요일</option>
-                  </select>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -533,75 +506,60 @@ export default function AdminSchedulePage() {
           </Card>
 
           {/* 시간표 뷰 */}
-          <section aria-label={viewMode === 'calendar' ? '캘린더 뷰' : '시간표 그리드'}>
-            {viewMode === 'calendar' ? (
-              <CalendarView
-                academyId={academyId}
-                viewMode={calendarViewMode}
-                selectedDay={selectedDay}
-                filters={{
-                  dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
-                  instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
-                  classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
-                  subjectIds: filters.subjectId ? [filters.subjectId] : undefined
-                }}
-                refreshKey={refreshKey}
-                onScheduleClick={handleEditSchedule}
-                onScheduleCreate={(data) => handleAddSchedule(data)}
-                onScheduleUpdate={async (scheduleId, data) => {
-                  try {
-                    // 현재 스크롤 위치 저장
-                    const currentScrollY = window.scrollY
-                    
-                    // startTime과 endTime이 Date 객체인 경우 문자열로 변환
-                    const updateData = {
-                      ...data,
-                      startTime: data.startTime instanceof Date 
-                        ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
-                        : data.startTime,
-                      endTime: data.endTime instanceof Date 
-                        ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
-                        : data.endTime
-                    }
-                    
-                    const response = await fetch(`/api/schedules/${scheduleId}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(updateData)
-                    })
-                    const result = await response.json()
-                    if (result.success) {
-                      setRefreshKey(prev => prev + 1)
-                      showNotification('success', '시간표가 수정되었습니다.')
-                      
-                      // 스크롤 위치 복원 (약간의 딜레이 후)
-                      setTimeout(() => {
-                        window.scrollTo(0, currentScrollY)
-                      }, 100)
-                    } else {
-                      showNotification('error', result.message || '수정에 실패했습니다.')
-                    }
-                  } catch (error) {
-                    showNotification('error', '네트워크 오류가 발생했습니다.')
+          <section aria-label="캘린더 뷰">
+            <CalendarView
+              academyId={academyId}
+              viewMode={calendarViewMode}
+              selectedDay={selectedDay}
+              filters={{
+                dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+              }}
+              refreshKey={refreshKey}
+              onScheduleClick={handleEditSchedule}
+              onScheduleCreate={(data) => handleAddSchedule(data)}
+              onScheduleUpdate={async (scheduleId, data) => {
+                try {
+                  // 현재 스크롤 위치 저장
+                  const currentScrollY = window.scrollY
+                  
+                  // startTime과 endTime이 Date 객체인 경우 문자열로 변환
+                  const updateData = {
+                    ...data,
+                    startTime: data.startTime instanceof Date 
+                      ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
+                      : data.startTime,
+                    endTime: data.endTime instanceof Date 
+                      ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
+                      : data.endTime
                   }
-                }}
-                onScheduleDelete={handleDeleteSchedule}
-                isReadOnly={false}
-              />
-            ) : (
-              <ScheduleGrid 
-                academyId={academyId} 
-                filters={{
-                  dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
-                  instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
-                  classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
-                  subjectIds: filters.subjectId ? [filters.subjectId] : undefined
-                }}
-                refreshKey={refreshKey}
-                onEdit={handleEditSchedule}
-                onDelete={handleDeleteSchedule}
-              />
-            )}
+                  
+                  const response = await fetch(`/api/schedules/${scheduleId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                  })
+                  const result = await response.json()
+                  if (result.success) {
+                    setRefreshKey(prev => prev + 1)
+                    showNotification('success', '시간표가 수정되었습니다.')
+                    
+                    // 스크롤 위치 복원 (약간의 딜레이 후)
+                    setTimeout(() => {
+                      window.scrollTo(0, currentScrollY)
+                    }, 100)
+                  } else {
+                    showNotification('error', result.message || '수정에 실패했습니다.')
+                  }
+                } catch (error) {
+                  showNotification('error', '네트워크 오류가 발생했습니다.')
+                }
+              }}
+              onScheduleDelete={handleDeleteSchedule}
+              isReadOnly={false}
+            />
           </section>
         </div>
       </div>
