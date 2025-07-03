@@ -751,50 +751,7 @@ export default function CalendarView({
           }}
         />
 
-        {/* 기존 스케줄 이동 시 상세 정보 */}
-        {isMovingExisting && draggedSchedule && (
-          <div 
-            className="absolute right-4 px-4 py-3 bg-green-50 rounded-lg shadow-xl border-2 border-green-200 text-sm z-30"
-            style={{ 
-              top: `${Math.max(10, top - 60)}px`
-            }}
-          >
-            <div className="font-bold text-green-800 mb-1">{draggedSchedule.title}</div>
-            <div className="text-green-600 font-medium">
-              {(() => {
-                const originalStart = timeToMinutes(draggedSchedule.startTime)
-                const originalEnd = timeToMinutes(draggedSchedule.endTime)
-                const duration = originalEnd - originalStart
-                const newStartTime = minutesToTime(dragCurrent.time)
-                const newEndTime = minutesToTime(dragCurrent.time + duration)
-                return `${newStartTime} - ${newEndTime}`
-              })()}
-            </div>
-            <div className="text-green-500 text-xs mt-1 animate-pulse">📍 이동 중...</div>
-          </div>
-        )}
 
-        {/* 새 시간표 생성 시 시간 범위 표시 - 현재 마우스 위치 기반으로 실시간 업데이트 */}
-        {!isMovingExisting && dragStart && dragCurrent && (
-          <div 
-            className="absolute right-4 px-4 py-3 bg-green-50 rounded-lg shadow-xl border-2 border-green-200 text-sm z-30"
-            style={{ 
-              top: `${Math.max(10, dragAreaTop)}px`
-            }}
-          >
-            <div className="font-bold text-green-800 mb-1">✨ 새 수업</div>
-            <div className="text-green-600 font-medium">
-              {(() => {
-                // 현재 마우스 위치와 드래그 시작점을 같은 요일에서 처리
-                const startMinutes = Math.min(dragStart.time, dragCurrent.time)
-                const endMinutes = Math.max(dragStart.time, dragCurrent.time)
-                const finalEndMinutes = Math.max(endMinutes, startMinutes + 30)
-                return `${minutesToTime(snapToGrid(startMinutes))} - ${minutesToTime(snapToGrid(finalEndMinutes))}`
-              })()}
-            </div>
-            <div className="text-green-500 text-xs mt-1 animate-pulse">⏰ {displayDays[dragCurrent.day]} 시간 선택 중...</div>
-          </div>
-        )}
       </div>
     )
   }
