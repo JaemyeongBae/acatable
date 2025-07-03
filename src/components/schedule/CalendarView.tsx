@@ -849,10 +849,15 @@ export default function CalendarView({
             <div className="w-20 border-r bg-gray-50">
               {timeSlots.map((timeMinutes, index) => {
                 const isHourMark = timeMinutes % 60 === 0 // 정시 체크 (XX:00)
+                const nextIsHourMark = index < timeSlots.length - 1 && timeSlots[index + 1] % 60 === 0 // 다음이 정시인지 체크
                 return (
                   <div
                     key={timeMinutes}
-                    className={`h-5 flex items-center justify-end pr-2 border-b border-gray-100`}
+                    className={`h-5 flex items-center justify-end pr-2 ${
+                      nextIsHourMark 
+                        ? 'border-b border-gray-300' // 다음이 정각: 중간 굵기 테두리 (요일 세로선과 비슷)
+                        : 'border-b border-gray-100'   // 일반: 얇은 회색 테두리
+                    }`}
                     style={{ fontSize: '11px' }}
                   >
                     {isHourMark && ( // 정각(XX:00)에만 시간 표시
@@ -882,10 +887,15 @@ export default function CalendarView({
                 <div key={day} className="flex-1 border-r-2 border-gray-300 relative bg-white">
                   {/* 시간 슬롯 배경 */}
                   {timeSlots.map((timeMinutes, index) => {
+                    const nextIsHourMark = index < timeSlots.length - 1 && timeSlots[index + 1] % 60 === 0 // 다음이 정시인지 체크
                     return (
                       <div
                         key={timeMinutes}
-                        className={`h-5 border-b border-gray-100 ${isReadOnly ? 'cursor-default' : 'hover:bg-blue-50 cursor-crosshair'}`}
+                        className={`h-5 ${
+                          nextIsHourMark 
+                            ? 'border-b border-gray-300' // 다음이 정각: 중간 굵기 테두리 (요일 세로선과 비슷)
+                            : 'border-b border-gray-100'   // 일반: 얇은 회색 테두리
+                        } ${isReadOnly ? 'cursor-default' : 'hover:bg-blue-50 cursor-crosshair'}`}
                         onMouseDown={(e) => !isReadOnly && handleMouseDown(e)}
                       />
                     )
