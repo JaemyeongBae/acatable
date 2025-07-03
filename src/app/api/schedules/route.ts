@@ -145,7 +145,17 @@ export async function POST(request: NextRequest) {
     if (!classroom) return createErrorResponse('존재하지 않는 강의실입니다.', 404)
     if (!classType) return createErrorResponse('존재하지 않는 수업유형입니다.', 404)
 
-    // **완화된 충돌 검증**: 경고만 출력하고 생성은 허용 (개발/테스트 환경용)
+    // 시간 데이터를 HH:MM 문자열 형식으로 유지
+    const validateTimeFormat = (timeStr: string): boolean => {
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+      return timeRegex.test(timeStr)
+    }
+
+    if (!validateTimeFormat(data.startTime) || !validateTimeFormat(data.endTime)) {
+      return createErrorResponse('시간 형식이 올바르지 않습니다. (HH:MM 형식 필요)', 400)
+    }
+
+    // **完화된 충돌 검증**: 경고만 출력하고 생성은 허용 (개발/테스트 환경용)
     try {
       const scheduleValidation = await validateCompleteSchedule({
         instructorId: data.instructorId,
@@ -202,14 +212,14 @@ export async function POST(request: NextRequest) {
         data: {
           scheduleId: schedule.id,
           action: 'CREATE',
-          changes: {
+          newData: JSON.stringify({
             title: data.title,
             dayOfWeek: data.dayOfWeek,
             startTime: data.startTime,
             endTime: data.endTime,
             instructorId: data.instructorId,
             classroomId: data.classroomId
-          },
+          }),
           changedBy: 'system', // TODO: 실제 사용자 ID로 변경
           changedAt: new Date()
         }
@@ -223,8 +233,8 @@ export async function POST(request: NextRequest) {
       title: newSchedule.title,
       description: newSchedule.description,
       dayOfWeek: newSchedule.dayOfWeek,
-      startTime: newSchedule.startTime,
-      endTime: newSchedule.endTime,
+      startTime: newSchedule.startTime, // 이미 HH:MM 형식
+      endTime: newSchedule.endTime, // 이미 HH:MM 형식
       maxStudents: newSchedule.maxStudents,
       subject: newSchedule.subject,
       instructor: { name: newSchedule.instructor.user.name },

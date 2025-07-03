@@ -221,20 +221,31 @@ export default function ScheduleGrid({
               </tr>
             </thead>
             <tbody>
-              {timeSlots.map(timeSlot => (
+                            {timeSlots.map((timeSlot, index) => {
+                const isLastSlot = index === timeSlots.length - 1
+                const isFirstSlot = index === 0
+                return (
                 <tr key={timeSlot} className="hover:bg-gray-50">
                   <th 
                     className="border border-gray-200 p-3 font-medium text-gray-600 bg-gray-50"
                     scope="row"
                   >
-                    {timeSlot}
+                    <div className="text-sm">
+                      {(() => {
+                        const hour = parseInt(timeSlot.split(':')[0])
+                        const minute = timeSlot.split(':')[1]
+                        const period = hour >= 12 ? '오후' : '오전'
+                        const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                        return `${period} ${displayHour}시${minute !== '00' ? ` ${minute}분` : ''}`
+                      })()}
+                    </div>
                   </th>
                   {DAYS_ORDER.map(day => {
                     const daySchedules = getScheduleAtTime(day, timeSlot)
                     return (
                       <td 
                         key={`${day}-${timeSlot}`} 
-                        className="border border-gray-200 p-2 align-top"
+                        className="border border-gray-200 p-2 align-top min-h-[60px]"
                         role="gridcell"
                         aria-label={`${DAY_LABELS[day]} ${timeSlot} 시간대`}
                       >
@@ -321,7 +332,8 @@ export default function ScheduleGrid({
                     )
                   })}
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -342,19 +354,28 @@ export default function ScheduleGrid({
             ))}
             
             {/* 시간표 내용 */}
-            {timeSlots.map(timeSlot => (
-              <React.Fragment key={timeSlot}>
-                <div className="border border-gray-200 p-2 bg-gray-50 text-sm font-medium text-gray-600">
-                  {timeSlot}
-                </div>
-                {DAYS_ORDER.map(day => {
-                  const daySchedules = getScheduleAtTime(day, timeSlot)
-                  return (
-                    <div 
-                      key={`${day}-${timeSlot}`} 
-                      className="border border-gray-200 p-1 min-h-[4rem]"
-                      role="gridcell"
-                    >
+            {timeSlots.map((timeSlot, index) => {
+              const isLastSlot = index === timeSlots.length - 1
+              const isFirstSlot = index === 0
+              return (
+                <React.Fragment key={timeSlot}>
+                  <div className="border border-gray-200 p-2 bg-gray-50 text-sm font-medium text-gray-600">
+                    {(() => {
+                      const hour = parseInt(timeSlot.split(':')[0])
+                      const minute = timeSlot.split(':')[1]
+                      const period = hour >= 12 ? '오후' : '오전'
+                      const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                      return `${period} ${displayHour}시${minute !== '00' ? ` ${minute}분` : ''}`
+                    })()}
+                  </div>
+                  {DAYS_ORDER.map(day => {
+                    const daySchedules = getScheduleAtTime(day, timeSlot)
+                    return (
+                      <div 
+                        key={`${day}-${timeSlot}`} 
+                        className="border border-gray-200 p-1 min-h-[4rem]"
+                        role="gridcell"
+                      >
                       {daySchedules.map(schedule => (
                         <div
                           key={schedule.id}
@@ -385,7 +406,8 @@ export default function ScheduleGrid({
                   )
                 })}
               </React.Fragment>
-            ))}
+                )
+            })}
           </div>
         </div>
       </Card>

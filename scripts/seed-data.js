@@ -13,7 +13,7 @@ async function seedData() {
     const academy = await prisma.academy.create({
       data: {
         id: 'demo-academy',
-        name: '우리학원',
+        name: '와이즈과학학원',
         code: 'DEMO001',
         address: '서울시 강남구 테스트로 123',
         phone: '02-1234-5678',

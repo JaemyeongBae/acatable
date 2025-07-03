@@ -3,7 +3,7 @@
 
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
-import { validateSchedule, validateData } from '@/lib/validation/schemas'
+import { validateSchedule, validateScheduleUpdate, validateData } from '@/lib/validation/schemas'
 import { validateCompleteSchedule } from '@/lib/utils/schedule-conflict'
 import {
   createSuccessResponse,
@@ -123,8 +123,8 @@ export async function PUT(
       return createNotFoundResponse('시간표')
     }
 
-    // 입력 데이터 유효성 검증
-    const validation = validateData(data, validateSchedule)
+    // 입력 데이터 유효성 검증 (부분 업데이트용)
+    const validation = validateData(data, validateScheduleUpdate)
     if (!validation.isValid) {
       return createValidationErrorResponse(validation.errors)
     }

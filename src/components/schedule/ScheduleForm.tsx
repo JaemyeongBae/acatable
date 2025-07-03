@@ -23,9 +23,10 @@ interface ScheduleFormData {
 interface ScheduleFormProps {
   academyId: string
   schedule?: any // 수정할 시간표 데이터
-  onSuccess: (message: string) => void
+  onSuccess: (message: string, formData?: ScheduleFormData) => void
   onCancel: () => void
   onError?: (message: string) => void
+  onDelete?: (scheduleId: string) => void
 }
 
 interface SelectOption {
@@ -60,7 +61,8 @@ export default function ScheduleForm({
   schedule, 
   onSuccess, 
   onCancel,
-  onError 
+  onError,
+  onDelete 
 }: ScheduleFormProps) {
   const [formData, setFormData] = useState<ScheduleFormData>({
     title: '',
@@ -93,12 +95,28 @@ export default function ScheduleForm({
   // 폼 데이터 초기화
   useEffect(() => {
     if (schedule) {
+      // startTime과 endTime이 Date 객체인 경우 HH:MM 형식으로 변환
+      let startTimeStr = schedule.startTime || ''
+      let endTimeStr = schedule.endTime || ''
+      
+      if (schedule.startTime instanceof Date) {
+        startTimeStr = schedule.startTime.toTimeString().slice(0, 5)
+      } else if (typeof schedule.startTime === 'string') {
+        startTimeStr = schedule.startTime
+      }
+      
+      if (schedule.endTime instanceof Date) {
+        endTimeStr = schedule.endTime.toTimeString().slice(0, 5)
+      } else if (typeof schedule.endTime === 'string') {
+        endTimeStr = schedule.endTime
+      }
+      
       setFormData({
         title: schedule.title || '',
         description: schedule.description || '',
         dayOfWeek: schedule.dayOfWeek || '',
-        startTime: schedule.startTime || '',
-        endTime: schedule.endTime || '',
+        startTime: startTimeStr,
+        endTime: endTimeStr,
         subjectId: schedule.subjectId || schedule.subject?.id || '',
         instructorId: schedule.instructorId || schedule.instructor?.id || '',
         classroomId: schedule.classroomId || schedule.classroom?.id || '',
@@ -289,11 +307,11 @@ export default function ScheduleForm({
     setLoading(true)
 
     try {
-      const endpoint = schedule 
+      const endpoint = schedule?.id
         ? `/api/schedules/${schedule.id}` 
         : '/api/schedules'
       
-      const method = schedule ? 'PUT' : 'POST'
+      const method = schedule?.id ? 'PUT' : 'POST'
 
       const response = await fetch(endpoint, {
         method,
@@ -311,7 +329,7 @@ export default function ScheduleForm({
 
       if (result.success) {
         const message = schedule ? '시간표가 수정되었습니다.' : '시간표가 등록되었습니다.'
-        onSuccess(message)
+        onSuccess(message, formData)
       } else {
         if (result.errors) {
           setErrors(result.errors)
@@ -330,6 +348,21 @@ export default function ScheduleForm({
       if (onError) {
         onError(errorMessage)
       }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 삭제 핸들러 (confirm은 상위 컴포넌트에서 처리)
+  const handleDelete = async () => {
+    if (!schedule?.id || !onDelete) return
+    
+    setLoading(true)
+    try {
+      onDelete(schedule.id)
+    } catch (error) {
+      console.error('삭제 오류:', error)
+      setErrors({ submit: '삭제 중 오류가 발생했습니다.' })
     } finally {
       setLoading(false)
     }
@@ -480,23 +513,18 @@ export default function ScheduleForm({
           >
             시작 시간 <span className="text-red-500">*</span>
           </label>
-          <select
+          <input
+            type="time"
             id="startTime"
             value={formData.startTime}
             onChange={(e) => handleChange('startTime', e.target.value)}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.startTime ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
             }`}
+            step="900"
             aria-describedby={errors.startTime ? 'startTime-error' : undefined}
             aria-invalid={!!errors.startTime}
-          >
-            <option value="">시작 시간 선택</option>
-            {timeOptions.map(time => (
-              <option key={time} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
+          />
           {errors.startTime && (
             <p id="startTime-error" className="mt-1 text-sm text-red-600" role="alert">
               {errors.startTime}
@@ -512,23 +540,18 @@ export default function ScheduleForm({
           >
             종료 시간 <span className="text-red-500">*</span>
           </label>
-          <select
+          <input
+            type="time"
             id="endTime"
             value={formData.endTime}
             onChange={(e) => handleChange('endTime', e.target.value)}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.endTime ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
             }`}
+            step="900"
             aria-describedby={errors.endTime ? 'endTime-error' : undefined}
             aria-invalid={!!errors.endTime}
-          >
-            <option value="">종료 시간 선택</option>
-            {timeOptions.map(time => (
-              <option key={time} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
+          />
           {errors.endTime && (
             <p id="endTime-error" className="mt-1 text-sm text-red-600" role="alert">
               {errors.endTime}
@@ -698,15 +721,31 @@ export default function ScheduleForm({
       </div>
 
       {/* 버튼 그룹 */}
-      <div className="flex justify-end space-x-3 pt-6 border-t">
-        <Button
-          type="button"
-          onClick={onCancel}
-          variant="secondary"
-          disabled={loading}
-        >
-          취소
-        </Button>
+      <div className="flex justify-between pt-6 border-t">
+        {/* 삭제 버튼 (수정 모드에서만 표시) */}
+        <div>
+          {schedule && (
+            <button
+              type="button"
+              onClick={() => handleDelete()}
+              disabled={loading}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              삭제
+            </button>
+          )}
+        </div>
+        
+        {/* 취소/저장 버튼 */}
+        <div className="flex space-x-3">
+          <Button
+            type="button"
+            onClick={onCancel}
+            variant="secondary"
+            disabled={loading}
+          >
+            취소
+          </Button>
         <Button
           type="submit"
           disabled={loading || isValidating}
@@ -772,6 +811,7 @@ export default function ScheduleForm({
             schedule ? '수정' : '등록'
           )}
         </Button>
+        </div>
       </div>
     </form>
   )

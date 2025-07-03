@@ -262,6 +262,70 @@ export function validateSchedule(data: any): ValidationResult {
 }
 
 /**
+ * 시간표 정보 부분 업데이트 유효성 검증 (수정용)
+ */
+export function validateScheduleUpdate(data: any): ValidationResult {
+  const errors: ValidationError[] = []
+
+  // 제공된 필드에 대해서만 검증 (모든 필드가 선택적)
+  if (data.title !== undefined) {
+    if (!data.title || typeof data.title !== 'string' || data.title.trim() === '') {
+      errors.push({ field: '강의명', message: '강의명은(는) 필수입니다.' })
+    } else {
+      const titleLengthError = validators.stringLength(data.title, '강의명', 1, 100)
+      if (titleLengthError) errors.push(titleLengthError)
+    }
+  }
+
+  if (data.dayOfWeek !== undefined) {
+    if (!data.dayOfWeek) {
+      errors.push({ field: '요일', message: '요일은(는) 필수입니다.' })
+    } else {
+      const dayValidationError = validators.dayOfWeek(data.dayOfWeek, '요일')
+      if (dayValidationError) errors.push(dayValidationError)
+    }
+  }
+
+  if (data.startTime !== undefined) {
+    if (!data.startTime) {
+      errors.push({ field: '시작시간', message: '시작시간은(는) 필수입니다.' })
+    } else {
+      const startTimeFormatError = validators.timeFormat(data.startTime, '시작시간')
+      if (startTimeFormatError) errors.push(startTimeFormatError)
+    }
+  }
+
+  if (data.endTime !== undefined) {
+    if (!data.endTime) {
+      errors.push({ field: '종료시간', message: '종료시간은(는) 필수입니다.' })
+    } else {
+      const endTimeFormatError = validators.timeFormat(data.endTime, '종료시간')
+      if (endTimeFormatError) errors.push(endTimeFormatError)
+    }
+  }
+
+  // 시간 논리 검증 (둘 다 제공된 경우에만)
+  if (data.startTime && data.endTime) {
+    const startTime = new Date(`1970-01-01T${data.startTime}:00`)
+    const endTime = new Date(`1970-01-01T${data.endTime}:00`)
+    
+    if (endTime <= startTime) {
+      errors.push({ 
+        field: 'endTime', 
+        message: '종료시간은 시작시간보다 늦어야 합니다.' 
+      })
+    }
+  }
+
+  if (data.maxStudents !== undefined && data.maxStudents !== null) {
+    const maxStudentsError = validators.numberRange(data.maxStudents, '최대수강인원', 1, 100)
+    if (maxStudentsError) errors.push(maxStudentsError)
+  }
+
+  return { isValid: errors.length === 0, errors }
+}
+
+/**
  * 범용 유효성 검증 실행기
  * @param data 검증할 데이터
  * @param schema 검증 스키마 함수

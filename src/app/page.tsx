@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import ScheduleGrid from '@/components/schedule/ScheduleGrid'
+import CalendarView from '@/components/schedule/CalendarView'
 import ScheduleDetailModal from '@/components/schedule/ScheduleDetailModal'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -22,30 +23,48 @@ interface FilterOptions {
 }
 
 export default function Home() {
-  const [selectedSchedule, setSelectedSchedule] = useState<any | null>(null)
-  const [filters, setFilters] = useState<FilterState>({})
-  const [isFilterExpanded, setIsFilterExpanded] = useState(false)
+  // 뷰 모드 상태 (캘린더 뷰 고정)
+  const [viewMode] = useState<'calendar'>('calendar')
+  const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'day'>('week')
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
+  
+  // 필터 관련 상태
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState<{
+    dayOfWeek?: DayOfWeek[]
+    instructorIds?: string[]
+    classroomIds?: string[]
+    subjectIds?: string[]
+  }>({})
+  
+  // 모달 관련 상태
+  const [selectedSchedule, setSelectedSchedule] = useState<any>(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  
+  const academyId = 'demo-academy' // TODO: 실제 인증 후 academyId 가져오기
+  const [academyName, setAcademyName] = useState('우리학원')
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     instructors: [],
     classrooms: [],
     subjects: []
   })
-  const [academyId] = useState('demo-academy')
 
-  // 필터 옵션 데이터 로딩
+  // 필터 옵션 데이터 및 학원 정보 로딩
   useEffect(() => {
-    const fetchFilterOptions = async () => {
+    const fetchData = async () => {
       try {
-        const [instructorsRes, classroomsRes, subjectsRes] = await Promise.all([
+        const [instructorsRes, classroomsRes, subjectsRes, academyRes] = await Promise.all([
           fetch(`/api/instructors?academyId=${academyId}`),
           fetch(`/api/classrooms?academyId=${academyId}`),
-          fetch(`/api/subjects?academyId=${academyId}`)
+          fetch(`/api/subjects?academyId=${academyId}`),
+          fetch(`/api/academies/${academyId}`)
         ])
 
-        const [instructors, classrooms, subjects] = await Promise.all([
+        const [instructors, classrooms, subjects, academy] = await Promise.all([
           instructorsRes.json(),
-          classroomsRes.json(),
-          subjectsRes.json()
+          classroomsRes.json(),  
+          subjectsRes.json(),
+          academyRes.json()
         ])
 
         setFilterOptions({
@@ -53,12 +72,17 @@ export default function Home() {
           classrooms: classrooms.success ? classrooms.data : [],
           subjects: subjects.success ? subjects.data : []
         })
+
+        // 학원 이름 설정
+        if (academy.success && academy.data?.name) {
+          setAcademyName(academy.data.name)
+        }
       } catch (error) {
-        console.error('필터 옵션 로딩 실패:', error)
+        console.error('데이터 로딩 실패:', error)
       }
     }
 
-    fetchFilterOptions()
+    fetchData()
   }, [academyId])
 
   // 필터 변경 핸들러
@@ -78,16 +102,22 @@ export default function Home() {
   // 활성 필터 카운트
   const activeFilterCount = Object.values(filters).filter(val => val).length
 
+  // 시간표 클릭 핸들러
+  const handleScheduleClick = (schedule: any) => {
+    setSelectedSchedule(schedule)
+    setShowDetailModal(true)
+  }
+
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <div className="text-center flex-1">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              우리학원시간표
+              {academyName} 시간표
             </h1>
             <p className="text-xl text-gray-600">
-              학원 시간표를 한눈에 확인하고 관리하세요
+              학원 시간표를 한눈에 확인하세요!
             </p>
           </div>
           <div className="ml-4">
@@ -119,205 +149,107 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 필터 섹션 */}
+      {/* 뷰 모드 선택 및 필터 */}
       <div className="max-w-7xl mx-auto mb-6">
-        <Card>
-          <div className="p-4">
-            {/* 필터 토글 버튼 */}
-            <div className="flex justify-between items-center">
-              <button
-                onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 font-medium"
-              >
-                <svg 
-                  className={`w-5 h-5 transition-transform ${isFilterExpanded ? 'rotate-180' : ''}`}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                <span>필터</span>
-                {activeFilterCount > 0 && (
-                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-                    {activeFilterCount}개 적용
-                  </span>
-                )}
-              </button>
+        <div className="bg-white rounded-lg border p-4 shadow-md">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              {/* 캘린더 뷰 고정 */}
+              <div className="text-sm font-medium text-gray-700">
+                캘린더 뷰
+              </div>
               
-              {activeFilterCount > 0 && (
+              {/* 캘린더 뷰 옵션 */}
+              <div className="flex items-center space-x-2">
                 <button
-                  onClick={handleResetFilters}
-                  className="text-sm text-gray-500 hover:text-red-600 font-medium"
+                  onClick={() => setCalendarViewMode('week')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    calendarViewMode === 'week' 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 >
-                  초기화
+                  주간
                 </button>
-              )}
+                <button
+                  onClick={() => setCalendarViewMode('day')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    calendarViewMode === 'day' 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  일간
+                </button>
+                {calendarViewMode === 'day' && (
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+                    className="ml-2 px-3 py-1 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="MONDAY">월요일</option>
+                    <option value="TUESDAY">화요일</option>
+                    <option value="WEDNESDAY">수요일</option>
+                    <option value="THURSDAY">목요일</option>
+                    <option value="FRIDAY">금요일</option>
+                    <option value="SATURDAY">토요일</option>
+                    <option value="SUNDAY">일요일</option>
+                  </select>
+                )}
+              </div>
             </div>
 
-            {/* 활성 필터 칩 표시 */}
-            {activeFilterCount > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {filters.dayOfWeek && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {filters.dayOfWeek === 'MONDAY' && '월요일'}
-                    {filters.dayOfWeek === 'TUESDAY' && '화요일'}
-                    {filters.dayOfWeek === 'WEDNESDAY' && '수요일'}
-                    {filters.dayOfWeek === 'THURSDAY' && '목요일'}
-                    {filters.dayOfWeek === 'FRIDAY' && '금요일'}
-                    {filters.dayOfWeek === 'SATURDAY' && '토요일'}
-                    {filters.dayOfWeek === 'SUNDAY' && '일요일'}
-                    <button
-                      onClick={() => handleFilterChange('dayOfWeek', '')}
-                      className="ml-1 text-blue-600 hover:text-blue-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                {filters.instructorId && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    {filterOptions.instructors.find(i => i.id === filters.instructorId)?.name || '강사'}
-                    <button
-                      onClick={() => handleFilterChange('instructorId', '')}
-                      className="ml-1 text-green-600 hover:text-green-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                {filters.classroomId && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    {filterOptions.classrooms.find(c => c.id === filters.classroomId)?.name || '강의실'}
-                    <button
-                      onClick={() => handleFilterChange('classroomId', '')}
-                      className="ml-1 text-purple-600 hover:text-purple-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                {filters.subjectId && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                    {filterOptions.subjects.find(s => s.id === filters.subjectId)?.name || '과목'}
-                    <button
-                      onClick={() => handleFilterChange('subjectId', '')}
-                      className="ml-1 text-orange-600 hover:text-orange-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* 확장된 필터 옵션 */}
-            {isFilterExpanded && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* 요일 필터 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      요일
-                    </label>
-                    <select 
-                      value={filters.dayOfWeek || ''}
-                      onChange={(e) => handleFilterChange('dayOfWeek', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    >
-                      <option value="">전체</option>
-                      <option value="MONDAY">월요일</option>
-                      <option value="TUESDAY">화요일</option>
-                      <option value="WEDNESDAY">수요일</option>
-                      <option value="THURSDAY">목요일</option>
-                      <option value="FRIDAY">금요일</option>
-                      <option value="SATURDAY">토요일</option>
-                      <option value="SUNDAY">일요일</option>
-                    </select>
-                  </div>
-
-                  {/* 강사 필터 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      강사
-                    </label>
-                    <select 
-                      value={filters.instructorId || ''}
-                      onChange={(e) => handleFilterChange('instructorId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    >
-                      <option value="">전체</option>
-                      {filterOptions.instructors.map(instructor => (
-                        <option key={instructor.id} value={instructor.id}>
-                          {instructor.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* 강의실 필터 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      강의실
-                    </label>
-                    <select 
-                      value={filters.classroomId || ''}
-                      onChange={(e) => handleFilterChange('classroomId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    >
-                      <option value="">전체</option>
-                      {filterOptions.classrooms.map(classroom => (
-                        <option key={classroom.id} value={classroom.id}>
-                          {classroom.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* 과목 필터 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      과목
-                    </label>
-                    <select 
-                      value={filters.subjectId || ''}
-                      onChange={(e) => handleFilterChange('subjectId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    >
-                      <option value="">전체</option>
-                      {filterOptions.subjects.map(subject => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* 필터 토글 버튼 */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 font-medium"
+            >
+              <svg 
+                className={`w-5 h-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M19 9l-7 7-7-7" 
+                />
+              </svg>
+              <span>필터</span>
+            </button>
           </div>
-        </Card>
+
+          {/* 필터 섹션 (확장 가능) */}
+          {showFilters && (
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-sm text-gray-600">필터 기능 준비 중...</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 시간표 그리드 */}
+      {/* 시간표 뷰 */}
       <div className="max-w-7xl mx-auto">
-        <ScheduleGrid 
-          academyId="demo-academy"
-          filters={{
-            dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
-            instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
-            classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
-            subjectIds: filters.subjectId ? [filters.subjectId] : undefined
-          }}
-          onScheduleClick={setSelectedSchedule}
+        <CalendarView
+          academyId={academyId}
+          viewMode={calendarViewMode}
+          selectedDay={selectedDay}
+          filters={filters}
+          onScheduleClick={handleScheduleClick}
+          isReadOnly={true}
         />
       </div>
 
       {/* 시간표 상세 모달 */}
-      {selectedSchedule && (
+      {showDetailModal && selectedSchedule && (
         <ScheduleDetailModal
           schedule={selectedSchedule}
-          onClose={() => setSelectedSchedule(null)}
+          onClose={() => {
+            setShowDetailModal(false)
+            setSelectedSchedule(null)
+          }}
         />
       )}
     </main>

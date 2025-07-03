@@ -9,7 +9,9 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import ScheduleForm from '@/components/schedule/ScheduleForm'
 import ScheduleGrid from '@/components/schedule/ScheduleGrid'
+import CalendarView from '@/components/schedule/CalendarView'
 import { DayOfWeek } from '@/types'
+import ScheduleDetailModal from '@/components/schedule/ScheduleDetailModal'
 
 interface FilterState {
   dayOfWeek?: string
@@ -33,6 +35,11 @@ interface FilterOptions {
 }
 
 export default function AdminSchedulePage() {
+  // 뷰 모드 상태
+  const [viewMode, setViewMode] = useState<'calendar' | 'grid'>('calendar')
+  const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'day'>('week')
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
+  
   // 폼 관련 상태
   const [formState, setFormState] = useState<FormState>({
     isOpen: false,
@@ -44,6 +51,9 @@ export default function AdminSchedulePage() {
   // 필터 관련 상태
   const [filters, setFilters] = useState<FilterState>({})
   const [isFilterApplied, setIsFilterApplied] = useState(false)
+  
+  // 마지막 입력값 저장 (빠른 입력을 위해)
+  const [lastFormData, setLastFormData] = useState<any>(null)
 
   // 필터 옵션 데이터
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -69,32 +79,32 @@ export default function AdminSchedulePage() {
 
   // 필터 옵션 데이터 로딩
   useEffect(() => {
-    const fetchFilterOptions = async () => {
+    const loadFilterOptions = async () => {
       try {
-        const [instructorsRes, classroomsRes, subjectsRes] = await Promise.all([
+        const [subjectsRes, instructorsRes, classroomsRes] = await Promise.all([
+          fetch(`/api/subjects?academyId=${academyId}`),
           fetch(`/api/instructors?academyId=${academyId}`),
-          fetch(`/api/classrooms?academyId=${academyId}`),
-          fetch(`/api/subjects?academyId=${academyId}`)
+          fetch(`/api/classrooms?academyId=${academyId}`)
         ])
 
-        const [instructors, classrooms, subjects] = await Promise.all([
+        const [subjectsData, instructorsData, classroomsData] = await Promise.all([
+          subjectsRes.json(),
           instructorsRes.json(),
-          classroomsRes.json(),
-          subjectsRes.json()
+          classroomsRes.json()
         ])
 
         setFilterOptions({
-          instructors: instructors.success ? instructors.data : [],
-          classrooms: classrooms.success ? classrooms.data : [],
-          subjects: subjects.success ? subjects.data : []
+          subjects: subjectsData.success ? subjectsData.data || [] : [],
+          instructors: instructorsData.success ? instructorsData.data || [] : [],
+          classrooms: classroomsData.success ? classroomsData.data || [] : []
         })
       } catch (error) {
         console.error('필터 옵션 로딩 실패:', error)
       }
     }
 
-    fetchFilterOptions()
-  }, [academyId])
+    loadFilterOptions()
+  }, [])
 
   // 필터 변경 핸들러
   const handleFilterChange = (field: keyof FilterState, value: string) => {
@@ -113,11 +123,11 @@ export default function AdminSchedulePage() {
   }
 
   // 새 시간표 추가
-  const handleAddSchedule = () => {
+  const handleAddSchedule = (presetData?: any) => {
     setFormState({
       isOpen: true,
       mode: 'create',
-      selectedSchedule: null,
+      selectedSchedule: presetData ? { ...lastFormData, ...presetData } : lastFormData,
       loading: false
     })
   }
@@ -142,7 +152,18 @@ export default function AdminSchedulePage() {
   }
 
   // 폼 성공 처리
-  const handleFormSuccess = (message: string) => {
+  const handleFormSuccess = (message: string, formData?: any) => {
+    // 마지막 입력값 저장 (다음 입력 시 활용)
+    if (formData && formState.mode === 'create') {
+      setLastFormData({
+        subjectId: formData.subjectId,
+        instructorId: formData.instructorId,
+        classroomId: formData.classroomId,
+        classTypeId: formData.classTypeId,
+        maxStudents: formData.maxStudents
+      })
+    }
+    
     setFormState(prev => ({
       ...prev,
       isOpen: false,
@@ -176,6 +197,14 @@ export default function AdminSchedulePage() {
       if (result.success) {
         setRefreshKey(prev => prev + 1)
         showNotification('success', '시간표가 삭제되었습니다.')
+        
+        // 삭제 성공 시 폼 모달 닫기
+        setFormState({
+          isOpen: false,
+          mode: 'create',
+          selectedSchedule: null,
+          loading: false
+        })
       } else {
         showNotification('error', result.message || '삭제에 실패했습니다.')
       }
@@ -247,6 +276,76 @@ export default function AdminSchedulePage() {
           </div>
         </div>
       </header>
+
+      {/* 뷰 모드 선택 */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'calendar' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                캘린더 뷰
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'grid' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                그리드 뷰
+              </button>
+            </div>
+            
+            {viewMode === 'calendar' && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCalendarViewMode('week')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    calendarViewMode === 'week' 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  주간
+                </button>
+                <button
+                  onClick={() => setCalendarViewMode('day')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    calendarViewMode === 'day' 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  일간
+                </button>
+                {calendarViewMode === 'day' && (
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+                    className="ml-2 px-3 py-1 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="MONDAY">월요일</option>
+                    <option value="TUESDAY">화요일</option>
+                    <option value="WEDNESDAY">수요일</option>
+                    <option value="THURSDAY">목요일</option>
+                    <option value="FRIDAY">금요일</option>
+                    <option value="SATURDAY">토요일</option>
+                    <option value="SUNDAY">일요일</option>
+                  </select>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* 알림 메시지 */}
       {notification.show && (
@@ -433,20 +532,76 @@ export default function AdminSchedulePage() {
             </section>
           </Card>
 
-          {/* 시간표 그리드 */}
-          <section aria-label="시간표 그리드">
-            <ScheduleGrid 
-              academyId={academyId} 
-              filters={{
-                dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
-                instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
-                classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
-                subjectIds: filters.subjectId ? [filters.subjectId] : undefined
-              }}
-              refreshKey={refreshKey}
-              onEdit={handleEditSchedule}
-              onDelete={handleDeleteSchedule}
-            />
+          {/* 시간표 뷰 */}
+          <section aria-label={viewMode === 'calendar' ? '캘린더 뷰' : '시간표 그리드'}>
+            {viewMode === 'calendar' ? (
+              <CalendarView
+                academyId={academyId}
+                viewMode={calendarViewMode}
+                selectedDay={selectedDay}
+                filters={{
+                  dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                  instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                  classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                  subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+                }}
+                refreshKey={refreshKey}
+                onScheduleClick={handleEditSchedule}
+                onScheduleCreate={(data) => handleAddSchedule(data)}
+                onScheduleUpdate={async (scheduleId, data) => {
+                  try {
+                    // 현재 스크롤 위치 저장
+                    const currentScrollY = window.scrollY
+                    
+                    // startTime과 endTime이 Date 객체인 경우 문자열로 변환
+                    const updateData = {
+                      ...data,
+                      startTime: data.startTime instanceof Date 
+                        ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
+                        : data.startTime,
+                      endTime: data.endTime instanceof Date 
+                        ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
+                        : data.endTime
+                    }
+                    
+                    const response = await fetch(`/api/schedules/${scheduleId}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updateData)
+                    })
+                    const result = await response.json()
+                    if (result.success) {
+                      setRefreshKey(prev => prev + 1)
+                      showNotification('success', '시간표가 수정되었습니다.')
+                      
+                      // 스크롤 위치 복원 (약간의 딜레이 후)
+                      setTimeout(() => {
+                        window.scrollTo(0, currentScrollY)
+                      }, 100)
+                    } else {
+                      showNotification('error', result.message || '수정에 실패했습니다.')
+                    }
+                  } catch (error) {
+                    showNotification('error', '네트워크 오류가 발생했습니다.')
+                  }
+                }}
+                onScheduleDelete={handleDeleteSchedule}
+                isReadOnly={false}
+              />
+            ) : (
+              <ScheduleGrid 
+                academyId={academyId} 
+                filters={{
+                  dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                  instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                  classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                  subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+                }}
+                refreshKey={refreshKey}
+                onEdit={handleEditSchedule}
+                onDelete={handleDeleteSchedule}
+              />
+            )}
           </section>
         </div>
       </div>
@@ -494,13 +649,22 @@ export default function AdminSchedulePage() {
               <ScheduleForm
                 academyId={academyId}
                 schedule={formState.selectedSchedule}
-                onSuccess={(message) => handleFormSuccess(message)}
+                onSuccess={(message, formData) => handleFormSuccess(message, formData)}
                 onCancel={handleCloseForm}
                 onError={(message) => showNotification('error', message)}
+                onDelete={handleDeleteSchedule}
               />
             </div>
           </div>
         </div>
+      )}
+
+      {/* 시간표 상세 모달 */}
+      {formState.selectedSchedule && !formState.isOpen && (
+        <ScheduleDetailModal
+          schedule={formState.selectedSchedule}
+          onClose={handleCloseForm}
+        />
       )}
     </main>
   )

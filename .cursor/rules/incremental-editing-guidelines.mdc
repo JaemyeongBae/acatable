@@ -1,0 +1,243 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Incremental Editing & Code Preservation Guidelines
+
+## 🚨 CRITICAL DIRECTIVE: NEVER REWRITE ENTIRE FILES
+
+### MANDATORY PRE-EDIT ANALYSIS
+Before making ANY code changes, you MUST:
+
+1. **READ THE FULL CONTEXT** - Understanding existing implementation is non-negotiable
+2. **IDENTIFY EXACT CHANGE SCOPE** - Pinpoint the minimal set of lines requiring modification  
+3. **PRESERVE EXISTING ARCHITECTURE** - Work within established patterns and conventions
+4. **VALIDATE CHANGE IMPACT** - Ensure modifications don't break existing functionality
+
+---
+
+## 🎯 SURGICAL EDITING PRINCIPLES
+
+### Rule #1: Context-Aware Modifications
+**ALWAYS analyze the surrounding code before making changes:**
+
+```typescript
+// ❌ WRONG: Rewriting entire function
+function ComponentName() {
+  // Completely new implementation...
+}
+
+// ✅ CORRECT: Targeted modification
+function ComponentName() {
+  // ... existing code ...
+  const [newState, setNewState] = useState(initialValue) // ONLY ADD THIS LINE
+  // ... rest of existing code ...
+}
+```
+
+### Rule #2: Incremental Feature Addition
+**When adding new functionality:**
+- ✅ Add new imports at the top (preserve existing import order)
+- ✅ Insert new state variables after existing ones
+- ✅ Add new functions before existing ones or in logical groupings
+- ✅ Append new JSX elements to existing structure
+- ❌ NEVER restructure existing working code
+
+### Rule #3: Bug Fix Protocol  
+**For bug fixes, follow the minimal change principle:**
+1. **Identify the exact problematic lines**
+2. **Modify ONLY the faulty logic**
+3. **Preserve all surrounding code structure**
+4. **Add error handling without removing existing logic**
+
+---
+
+## 🔧 EDIT OPERATION TAXONOMY
+
+### TYPE A: Single Line Modifications
+```typescript
+// Change: Update a single variable or expression
+const oldValue = "previous"
+const newValue = "updated" // ONLY THIS LINE CHANGES
+```
+
+### TYPE B: Block Insertions
+```typescript
+// Change: Add new functionality block
+function existingFunction() {
+  // ... existing code ...
+  
+  // NEW BLOCK START
+  const newLogic = performNewOperation()
+  if (newLogic) {
+    handleNewScenario()
+  }
+  // NEW BLOCK END
+  
+  // ... rest of existing code ...
+}
+```
+
+### TYPE C: Conditional Enhancements
+```typescript
+// Change: Enhance existing conditions
+if (existingCondition) {
+  // ... existing logic ...
+} else if (newCondition) { // ADD ONLY THIS BRANCH
+  handleNewCase()
+} // ... preserve existing else blocks ...
+```
+
+---
+
+## 📋 EDITING CHECKLIST
+
+### Before Every Edit:
+- [ ] **Read the entire function/component** to understand current behavior
+- [ ] **Identify the minimal change scope** required for the task
+- [ ] **Check for existing patterns** to follow in the codebase
+- [ ] **Locate the exact insertion/modification points**
+
+### During Editing:
+- [ ] **Use search_replace for precise changes** when modifying existing lines
+- [ ] **Use edit_file for adding new blocks** with clear `// ... existing code ...` markers
+- [ ] **Preserve indentation and formatting** of surrounding code
+- [ ] **Maintain existing variable naming conventions**
+
+### After Editing:
+- [ ] **Verify the change scope** matches the intended modification
+- [ ] **Check that existing functionality** remains intact
+- [ ] **Ensure imports/dependencies** are properly added/updated
+- [ ] **Validate TypeScript types** are compatible with changes
+
+---
+
+## 🎨 ARCHITECTURAL PRESERVATION RULES
+
+### Rule #1: Respect Existing Patterns
+**If the codebase uses specific patterns, ALWAYS follow them:**
+```typescript
+// EXISTING PATTERN: Custom hooks for data fetching
+const useExistingData = () => { ... }
+
+// NEW ADDITION: Follow the same pattern
+const useNewData = () => { ... } // ✅ CORRECT: Matches existing pattern
+```
+
+### Rule #2: Component Structure Consistency  
+**Maintain established component structure:**
+```typescript
+function ExistingComponent() {
+  // 1. Hooks (preserve order)
+  // 2. State management (preserve existing)
+  // 3. Event handlers (add new ones here)
+  // 4. useEffect hooks (preserve existing)
+  // 5. Render logic (minimal changes only)
+}
+```
+
+### Rule #3: Import Organization
+**Follow existing import grouping and ordering:**
+```typescript
+// 1. React/Next.js imports
+// 2. Third-party libraries  
+// 3. Internal utilities/hooks
+// 4. Component imports
+// 5. Type imports
+```
+
+---
+
+## 🚀 ADVANCED EDITING STRATEGIES
+
+### Strategy #1: Feature Flag Pattern
+**For new features, use feature flags to avoid disrupting existing code:**
+```typescript
+const useFeatureFlag = (flag: string) => process.env[flag] === 'true'
+
+function Component() {
+  const enableNewFeature = useFeatureFlag('ENABLE_NEW_FEATURE')
+  
+  // ... existing code ...
+  
+  return (
+    <div>
+      {/* ... existing JSX ... */}
+      {enableNewFeature && <NewFeatureComponent />}
+    </div>
+  )
+}
+```
+
+### Strategy #2: Gradual Enhancement Pattern
+**Enhance existing functions gradually:**
+```typescript
+function existingFunction(params: ExistingParams) {
+  // ... preserve all existing logic ...
+  
+  // Enhance with new capabilities
+  const enhancedResult = enhanceExistingLogic(originalResult)
+  return enhancedResult
+}
+```
+
+### Strategy #3: Backwards-Compatible API Changes
+**When modifying APIs, maintain backwards compatibility:**
+```typescript
+// Old signature (preserve)
+function apiFunction(oldParam: string): Result
+// New overload (add)
+function apiFunction(newParams: NewParamType): Result
+function apiFunction(param: string | NewParamType): Result {
+  // Handle both cases
+}
+```
+
+---
+
+## 🔍 CODE REVIEW SIMULATION
+
+### Self-Review Questions:
+1. **"Did I rewrite more than necessary?"** - If yes, reconsider approach
+2. **"Will this break existing functionality?"** - Test edge cases
+3. **"Does this follow established patterns?"** - Consistency check
+4. **"Is this the minimal viable change?"** - Scope validation
+
+### Change Impact Assessment:
+- **LOW IMPACT**: Single line variable changes, adding new optional props
+- **MEDIUM IMPACT**: Adding new functions, modifying conditionals
+- **HIGH IMPACT**: Changing function signatures, restructuring components
+- **CRITICAL IMPACT**: Modifying core business logic, changing data flow
+
+---
+
+## 💡 PROMPT ENGINEERING TECHNIQUES
+
+### Technique #1: Constraint-Based Prompting
+**Always frame edits within constraints:**
+"Add [specific functionality] to [exact component/function] while preserving [existing behavior/structure]"
+
+### Technique #2: Example-Driven Instructions  
+**Provide clear examples of desired change patterns:**
+"Follow the existing pattern in [similar component] when adding this feature"
+
+### Technique #3: Validation-Focused Prompting
+**Include success criteria in prompts:**
+"The change should allow [new behavior] while ensuring [existing functionality] continues to work"
+
+---
+
+## 🎯 GOLDEN RULES SUMMARY
+
+1. **READ FIRST, EDIT SECOND** - Always understand before modifying
+2. **MINIMAL VIABLE CHANGE** - Change only what's necessary  
+3. **PRESERVE EXISTING PATTERNS** - Follow established conventions
+4. **INCREMENTAL ENHANCEMENT** - Build upon existing foundation
+5. **VALIDATE BACKWARDS COMPATIBILITY** - Ensure existing features work
+6. **DOCUMENT CHANGE RATIONALE** - Comment complex modifications
+7. **TEST EDGE CASES** - Verify existing functionality remains intact
+
+---
+
+**REMEMBER:** Your role is to be a surgeon, not a demolition expert. Precise, careful modifications create maintainable, stable codebases.
