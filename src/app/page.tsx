@@ -49,22 +49,20 @@ export default function Home() {
     subjects: []
   })
 
-  // 필터 옵션 데이터 및 학원 정보 로딩
+  // 필터 옵션 데이터 로딩
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [instructorsRes, classroomsRes, subjectsRes, academyRes] = await Promise.all([
+        const [instructorsRes, classroomsRes, subjectsRes] = await Promise.all([
           fetch(`/api/instructors?academyId=${academyId}`),
           fetch(`/api/classrooms?academyId=${academyId}`),
-          fetch(`/api/subjects?academyId=${academyId}`),
-          fetch(`/api/academies/${academyId}`)
+          fetch(`/api/subjects?academyId=${academyId}`)
         ])
 
-        const [instructors, classrooms, subjects, academy] = await Promise.all([
+        const [instructors, classrooms, subjects] = await Promise.all([
           instructorsRes.json(),
           classroomsRes.json(),  
-          subjectsRes.json(),
-          academyRes.json()
+          subjectsRes.json()
         ])
 
         setFilterOptions({
@@ -73,10 +71,6 @@ export default function Home() {
           subjects: subjects.success ? subjects.data : []
         })
 
-        // 학원 이름 설정
-        if (academy.success && academy.data?.name) {
-          setAcademyName(academy.data.name)
-        }
       } catch (error) {
         console.error('데이터 로딩 실패:', error)
       }

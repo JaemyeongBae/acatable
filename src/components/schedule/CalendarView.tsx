@@ -102,6 +102,7 @@ export default function CalendarView({
   const [dragCurrent, setDragCurrent] = useState<{ day: number; time: number } | null>(null)
   const [draggedSchedule, setDraggedSchedule] = useState<any>(null)
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null)
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
   
 
   
@@ -187,8 +188,6 @@ export default function CalendarView({
     const headerHeight = headerElement ? headerElement.getBoundingClientRect().height : 60
     const timeAreaWidth = 80
 
-    if (relativeY < headerHeight || relativeX < timeAreaWidth) return null
-
     const contentY = relativeY - headerHeight
     const contentX = relativeX - timeAreaWidth
 
@@ -197,9 +196,18 @@ export default function CalendarView({
     const exactTimeIndex = contentY / timeSlotHeight
     const timeIndex = Math.floor(exactTimeIndex)
     
-    if (timeIndex < 0 || timeIndex >= timeSlots.length) return null
+    // 시간 범위 체크를 완화하여 영역 밖에서도 계산 가능하도록 함
+    let baseTimeInMinutes: number
+    if (timeIndex < 0) {
+      // 시간표 위쪽 영역에서는 최소 시간 사용
+      baseTimeInMinutes = 9 * 60 // 9:00
+    } else if (timeIndex >= timeSlots.length) {
+      // 시간표 아래쪽 영역에서는 최대 시간 사용
+      baseTimeInMinutes = 22 * 60 // 22:00
+    } else {
+      baseTimeInMinutes = timeSlots[timeIndex]
+    }
     
-    const baseTimeInMinutes = timeSlots[timeIndex]
     const fractionWithinSlot = exactTimeIndex - timeIndex
     const adjustedMinutes = baseTimeInMinutes + (fractionWithinSlot * 15)
     const snappedMinutes = snapToGrid(adjustedMinutes)
@@ -218,13 +226,15 @@ export default function CalendarView({
     let dayIndex = Math.floor(blockCenterX / dayWidth)
     
     // 경계 처리 - 블록이 50% 이상 넘어갔을 때만 이동
-    const positionInDay = (blockCenterX % dayWidth) / dayWidth
-    if (positionInDay < 0.5 && blockCenterX > 0) {
-      // 50% 미만이면 이전 요일 유지
-      dayIndex = Math.floor((blockCenterX - dayWidth * 0.5) / dayWidth)
+    if (blockCenterX >= 0) {
+      const positionInDay = (blockCenterX % dayWidth) / dayWidth
+      if (positionInDay < 0.5 && blockCenterX > 0) {
+        // 50% 미만이면 이전 요일 유지
+        dayIndex = Math.floor((blockCenterX - dayWidth * 0.5) / dayWidth)
+      }
     }
     
-    // 범위 체크
+    // 요일 범위 체크 - 영역 밖에서도 가장 가까운 요일 선택
     dayIndex = Math.max(0, Math.min(displayDays.length - 1, dayIndex))
 
     const actualDayIndex = viewMode === 'week' ? dayIndex : selectedDay
@@ -245,8 +255,6 @@ export default function CalendarView({
     const headerHeight = headerElement ? headerElement.getBoundingClientRect().height : 60
     const timeAreaWidth = 80
 
-    if (relativeY < headerHeight || relativeX < timeAreaWidth) return null
-
     const contentY = relativeY - headerHeight
     const contentX = relativeX - timeAreaWidth
 
@@ -255,10 +263,19 @@ export default function CalendarView({
     const exactTimeIndex = contentY / timeSlotHeight // 정확한 인덱스 (소수점 포함)
     const timeIndex = Math.floor(exactTimeIndex) // 기본 인덱스
     
-    if (timeIndex < 0 || timeIndex >= timeSlots.length) return null
+    // 시간 범위 체크를 완화하여 영역 밖에서도 계산 가능하도록 함
+    let baseTimeInMinutes: number
+    if (timeIndex < 0) {
+      // 시간표 위쪽 영역에서는 최소 시간 사용
+      baseTimeInMinutes = 9 * 60 // 9:00
+    } else if (timeIndex >= timeSlots.length) {
+      // 시간표 아래쪽 영역에서는 최대 시간 사용
+      baseTimeInMinutes = 22 * 60 // 22:00
+    } else {
+      baseTimeInMinutes = timeSlots[timeIndex]
+    }
     
     // 15분 단위로 스냅하되, 마우스 위치를 더 정확하게 반영
-    const baseTimeInMinutes = timeSlots[timeIndex]
     const fractionWithinSlot = exactTimeIndex - timeIndex
     const adjustedMinutes = baseTimeInMinutes + (fractionWithinSlot * 15)
     const snappedMinutes = snapToGrid(adjustedMinutes)
@@ -286,7 +303,14 @@ export default function CalendarView({
       }
     }
     
-    if (dayIndex < 0 || dayIndex >= displayDays.length) return null
+    // 영역 밖에서도 가장 가까운 요일 선택
+    if (dayIndex < 0) {
+      if (contentX < 0) {
+        dayIndex = 0 // 왼쪽 영역에서는 첫 번째 요일
+      } else {
+        dayIndex = displayDays.length - 1 // 오른쪽 영역에서는 마지막 요일
+      }
+    }
 
     const actualDayIndex = viewMode === 'week' ? dayIndex : selectedDay
 
@@ -301,15 +325,20 @@ export default function CalendarView({
       e.preventDefault()
       e.stopPropagation()
       
+      // 마우스 위치 추적 (항상 업데이트)
+      setMousePosition({ x: e.clientX, y: e.clientY })
+      
       if (draggedSchedule && dragOffset) {
         // 기존 시간표 이동 시 블록 위치 기반 계산
         const position = getTimeAndDayFromBlockPosition(e.clientX, e.clientY, dragOffset)
+        // 영역 밖에서도 항상 위치 업데이트 (null 체크 제거)
         if (position) {
           setDragCurrent(position)
         }
       } else {
         // 새 시간표 생성 시 일반적인 위치 계산
         const position = getTimeAndDayFromPosition(e.clientX, e.clientY)
+        // 영역 밖에서도 항상 위치 업데이트 (null 체크 제거)
         if (position) {
           setDragCurrent(position)
         }
@@ -356,6 +385,7 @@ export default function CalendarView({
       setDragCurrent(null)
       setDraggedSchedule(null)
       setDragOffset(null)
+      setMousePosition(null)
     }
 
     // 전역 이벤트 리스너 등록
@@ -416,15 +446,20 @@ export default function CalendarView({
 
     e.preventDefault()
 
+    // 마우스 위치 추적 (항상 업데이트)
+    setMousePosition({ x: e.clientX, y: e.clientY })
+
     if (draggedSchedule && dragOffset) {
       // 기존 시간표 이동 시 블록 위치 기반 계산
       const position = getTimeAndDayFromBlockPosition(e.clientX, e.clientY, dragOffset)
+      // 영역 밖에서도 항상 위치 업데이트
       if (position) {
         setDragCurrent(position)
       }
     } else {
       // 새 시간표 생성 시 일반적인 위치 계산
       const position = getTimeAndDayFromPosition(e.clientX, e.clientY)
+      // 영역 밖에서도 항상 위치 업데이트
       if (position) {
         setDragCurrent(position)
       }
@@ -474,6 +509,7 @@ export default function CalendarView({
     setDragCurrent(null)
     setDraggedSchedule(null)
     setDragOffset(null)
+    setMousePosition(null)
   }, [isDragging, dragStart, dragCurrent, draggedSchedule, onScheduleCreate, onScheduleUpdate])
 
   // 시간표를 렌더링하는 함수
@@ -564,6 +600,38 @@ export default function CalendarView({
       // 새 시간표 생성 프리뷰 - 가이드라인에서 이미 처리하므로 간소화
       return null
     }
+  }
+
+  // 마우스 커서를 따라다니는 드래그 프리뷰 (시간표 영역 밖에서도 표시)
+  const renderMouseFollowPreview = () => {
+    if (!isDragging || !draggedSchedule || !mousePosition || !dragOffset) return null
+
+    const originalStart = timeToMinutes(draggedSchedule.startTime)
+    const originalEnd = timeToMinutes(draggedSchedule.endTime)
+    const duration = originalEnd - originalStart
+    const height = (duration / 15) * 20 // 15분당 20px
+
+    return (
+      <div
+        className="fixed bg-green-100 border-2 border-green-400 border-dashed rounded p-1 opacity-90 z-50 shadow-lg pointer-events-none"
+        style={{
+          left: `${mousePosition.x - dragOffset.x}px`,
+          top: `${mousePosition.y - dragOffset.y}px`,
+          width: '120px',
+          height: `${height}px`,
+          fontSize: '12px'
+        }}
+      >
+        <div className="font-semibold truncate text-green-800">{draggedSchedule.title}</div>
+        <div className="text-xs text-green-600 truncate">
+          {typeof draggedSchedule.startTime === 'string' ? draggedSchedule.startTime : draggedSchedule.startTime.toTimeString().slice(0, 5)} - {typeof draggedSchedule.endTime === 'string' ? draggedSchedule.endTime : draggedSchedule.endTime.toTimeString().slice(0, 5)}
+        </div>
+        <div className="absolute -top-1 -left-1 w-2 h-2 bg-green-500 rounded-full"></div>
+        <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+        <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-green-500 rounded-full"></div>
+        <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+      </div>
+    )
   }
 
   // 드래그 가이드라인 렌더링 (시간대별 점선)
@@ -830,6 +898,9 @@ export default function CalendarView({
           </div>
         </div>
       </div>
+
+      {/* 마우스 커서를 따라다니는 드래그 프리뷰 (전역 위치) */}
+      {renderMouseFollowPreview()}
     </div>
   )
 } 
