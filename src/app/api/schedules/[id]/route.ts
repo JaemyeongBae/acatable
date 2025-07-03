@@ -171,15 +171,12 @@ export async function PUT(
           maxStudents: data.maxStudents
         }, id) // 현재 스케줄은 충돌 검사에서 제외
 
-        if (!scheduleValidation.isValid) {
-          console.warn('⚠️ 시간표 수정 충돌 경고:', {
-            conflicts: scheduleValidation.conflicts?.message,
-            capacity: scheduleValidation.capacityError
-          })
-          // 충돌이 있어도 수정을 계속 진행 (개발/테스트 환경용)
-        }
-      } catch (conflictError) {
-        console.warn('충돌 검증 중 오류 (무시하고 계속):', conflictError)
+              if (!scheduleValidation.isValid) {
+        // 충돌이 있어도 수정을 계속 진행 (개발/테스트 환경용)
+        // 프로덕션에서는 여기서 에러를 반환하도록 수정 필요
+      }
+    } catch (conflictError) {
+      // 충돌 검증 중 오류가 발생해도 계속 진행
       }
     }
 
@@ -233,13 +230,10 @@ export async function DELETE(
     })
 
     if (studentCount > 0) {
-      console.warn(`⚠️ 시간표 삭제 경고: ${studentCount}명의 수강생이 등록되어 있습니다.`)
-      
       // 개발/테스트 환경에서는 관련 수강생 데이터도 함께 삭제
       await prisma.studentSchedule.deleteMany({
         where: { scheduleId: id }
       })
-      console.warn('관련 수강생 데이터를 함께 삭제했습니다.')
     }
 
     // 시간표 비활성화 (soft delete)

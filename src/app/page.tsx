@@ -41,8 +41,8 @@ export default function Home() {
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   
-  const academyId = 'demo-academy' // TODO: 실제 인증 후 academyId 가져오기
-  const [academyName, setAcademyName] = useState('우리학원')
+  const academyId = 'demo-academy' // 데모용 학원 ID (향후 인증 시스템 연동 필요)
+  const [academyName, setAcademyName] = useState('와이즈과학학원')
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     instructors: [],
     classrooms: [],

@@ -86,17 +86,7 @@ export default function CalendarView({
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'week' | 'day'>(initialViewMode)
 
-  // 디버깅을 위한 로그
-  React.useEffect(() => {
-    console.log('CalendarView props:', { 
-      academyId, 
-      initialViewMode, 
-      initialSelectedDay, 
-      filters, 
-      refreshKey, 
-      isReadOnly 
-    })
-  }, [academyId, initialViewMode, initialSelectedDay, filters, refreshKey, isReadOnly])
+
   
   // selectedDay를 DayOfWeek에서 숫자 인덱스로 변환
   const getSelectedDayIndex = React.useCallback(() => {
