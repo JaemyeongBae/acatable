@@ -183,7 +183,10 @@ model Schedule {
   subjectId    String
   instructorId String
   classroomId  String
-  classTypeId  String
+  classTypeId  String?
+  
+  // 표시 정보
+  color        String    @default("#BFDBFE") // 시간표 표시용 색상 (HEX)
   
   // 상태 및 메타데이터
   isActive     Boolean   @default(true)

@@ -72,6 +72,7 @@ export async function GET(
       endTime: schedule.endTime,
       maxStudents: schedule.maxStudents,
       currentStudents: schedule.studentSchedules.length,
+      color: schedule.color || '#BFDBFE', // 색상 필드 추가
       academy: schedule.academy,
       subject: schedule.subject,
       instructor: {
@@ -193,7 +194,8 @@ export async function PUT(
         subjectId: data.subjectId || existingSchedule.subjectId,
         instructorId: data.instructorId || existingSchedule.instructorId,
         classroomId: data.classroomId || existingSchedule.classroomId,
-        classTypeId: data.classTypeId || existingSchedule.classTypeId
+        classTypeId: data.classTypeId || existingSchedule.classTypeId,
+        color: data.color || existingSchedule.color || '#BFDBFE' // 색상 필드 추가
       }
     })
 

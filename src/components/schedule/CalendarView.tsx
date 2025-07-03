@@ -528,36 +528,54 @@ export default function CalendarView({
     const top = (relativeStart / 15) * slotHeight
     const height = (duration / 15) * slotHeight
 
+    // 색상 처리 (기본값: 파란색)
+    const scheduleColor = schedule.color || '#3B82F6'
+    const isLightColor = (color: string) => {
+      const hex = color.replace('#', '')
+      const r = parseInt(hex.substr(0, 2), 16)
+      const g = parseInt(hex.substr(2, 2), 16)
+      const b = parseInt(hex.substr(4, 2), 16)
+      const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000
+      return brightness > 155
+    }
+
+    const textColor = isLightColor(scheduleColor) ? 'text-gray-800' : 'text-white'
+
     return (
       <div
         key={schedule.id}
-        className={`absolute left-1 right-1 bg-blue-100 border border-blue-300 rounded transition-colors z-10 ${
-          isReadOnly ? 'cursor-pointer hover:bg-blue-150' : 'cursor-move hover:bg-blue-200'
+        className={`absolute left-1 right-1 rounded transition-colors z-10 ${
+          isReadOnly ? 'cursor-pointer' : 'cursor-move'
         }`}
         style={{
           top: `${top}px`,
           height: `${Math.max(height, 50)}px`,
-          padding: '9px'
+          padding: '9px',
+          backgroundColor: scheduleColor,
+          borderColor: scheduleColor,
+          borderWidth: '1px',
+          borderStyle: 'solid',
+          opacity: 0.9
         }}
         onMouseDown={(e) => handleMouseDown(e, schedule)}
         onClick={() => onScheduleClick?.(schedule)}
       >
         {/* 첫 번째 줄: 시간 */}
-        <div className="text-xs text-gray-700 mb-1">
+        <div className={`text-xs mb-1 ${textColor}`}>
           {schedule.startTime} - {schedule.endTime}
         </div>
         
         {/* 두 번째 줄: 강좌명 (굵게) */}
-        <div className="font-bold text-xs text-gray-900 truncate mb-1">
+        <div className={`font-bold text-xs truncate mb-1 ${textColor}`}>
           {schedule.title}
         </div>
         
         {/* 세 번째 줄: 강사명 (좌측, 굵게) + 강의실명 (우측) */}
         <div className="flex justify-between items-start">
-          <div className="font-bold text-xs text-gray-700 truncate flex-1 mr-3">
+          <div className={`font-bold text-xs truncate flex-1 mr-3 ${textColor}`}>
             {schedule.instructor ? schedule.instructor.name : '강사 미정'}
           </div>
-          <div className="text-xs text-gray-600 whitespace-nowrap">
+          <div className={`text-xs whitespace-nowrap ${textColor}`}>
             {schedule.classroom ? schedule.classroom.name : '강의실 미정'}
           </div>
         </div>

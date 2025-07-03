@@ -94,6 +94,7 @@ export async function GET(request: NextRequest) {
       endTime: schedule.endTime,
       maxStudents: schedule.maxStudents,
       currentStudents: schedule.studentSchedules.length,
+              color: schedule.color || '#BFDBFE', // 색상 필드 추가
       subject: schedule.subject,
       instructor: schedule.instructor ? {
         id: schedule.instructor.id,
@@ -189,7 +190,8 @@ export async function POST(request: NextRequest) {
           subjectId: data.subjectId,
           instructorId: data.instructorId,
           classroomId: data.classroomId,
-          classTypeId: data.classTypeId
+          classTypeId: data.classTypeId,
+          color: data.color || '#BFDBFE' // 색상 필드 추가
         },
         include: {
           subject: { select: { name: true, color: true } },

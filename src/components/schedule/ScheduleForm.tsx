@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import Button from '@/components/ui/Button'
+import ColorPicker from '@/components/ui/ColorPicker'
 import { DayOfWeek } from '@/types'
 
 interface ScheduleFormData {
@@ -18,6 +19,7 @@ interface ScheduleFormData {
   classroomId: string
   classTypeId: string
   maxStudents: number | ''
+  color: string
 }
 
 interface ScheduleFormProps {
@@ -74,7 +76,8 @@ export default function ScheduleForm({
     instructorId: '',
     classroomId: '',
     classTypeId: '',
-    maxStudents: ''
+    maxStudents: '',
+    color: '#3B82F6' // 기본값: 파란색
   })
 
   const [options, setOptions] = useState({
@@ -121,7 +124,8 @@ export default function ScheduleForm({
         instructorId: schedule.instructorId || schedule.instructor?.id || '',
         classroomId: schedule.classroomId || schedule.classroom?.id || '',
         classTypeId: schedule.classTypeId || schedule.classType?.id || '',
-        maxStudents: schedule.maxStudents || ''
+        maxStudents: schedule.maxStudents || '',
+        color: schedule.color || '#3B82F6' // 기본값: 파란색
       })
     }
   }, [schedule])
@@ -504,7 +508,25 @@ export default function ScheduleForm({
             </p>
           )}
         </div>
+      </div>
 
+      {/* 색상 - 독립된 행 */}
+      <div>
+        <label 
+          htmlFor="color" 
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          색상
+        </label>
+        <ColorPicker
+          value={formData.color}
+          onChange={(color) => handleChange('color', color)}
+          disabled={loading}
+        />
+      </div>
+
+      {/* 시간 설정 - 같은 행 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* 시작 시간 */}
         <div>
           <label 
@@ -558,6 +580,10 @@ export default function ScheduleForm({
             </p>
           )}
         </div>
+      </div>
+
+      {/* 나머지 필드들 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* 과목 */}
         <div>
