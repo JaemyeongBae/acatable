@@ -243,21 +243,8 @@ export default function ScheduleForm({
       newErrors.endTime = '종료 시간은 시작 시간보다 늦어야 합니다.'
     }
 
-    if (!formData.subjectId) {
-      newErrors.subjectId = '과목을 선택해주세요.'
-    }
-
-    if (!formData.instructorId) {
-      newErrors.instructorId = '강사를 선택해주세요.'
-    }
-
-    if (!formData.classroomId) {
-      newErrors.classroomId = '강의실을 선택해주세요.'
-    }
-
-    if (!formData.classTypeId) {
-      newErrors.classTypeId = '수업 유형을 선택해주세요.'
-    }
+    // 과목, 강사, 강의실, 수업유형은 선택사항으로 변경
+    // 필요에 따라 나중에 입력 가능
 
     if (formData.maxStudents !== '' && formData.maxStudents <= 0) {
       newErrors.maxStudents = '최대 수강 인원은 1명 이상이어야 합니다.'
@@ -332,7 +319,7 @@ export default function ScheduleForm({
       const result = await response.json()
 
       if (result.success) {
-        const message = schedule ? '시간표가 수정되었습니다.' : '시간표가 등록되었습니다.'
+        const message = '시간표가 설정되었습니다.'
         onSuccess(message, formData)
       } else {
         if (result.errors) {
@@ -591,7 +578,7 @@ export default function ScheduleForm({
             htmlFor="subjectId" 
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            과목 <span className="text-red-500">*</span>
+            과목
           </label>
           <select
             id="subjectId"
@@ -623,7 +610,7 @@ export default function ScheduleForm({
             htmlFor="instructorId" 
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            강사 <span className="text-red-500">*</span>
+            강사
           </label>
           <select
             id="instructorId"
@@ -662,7 +649,7 @@ export default function ScheduleForm({
             htmlFor="classroomId" 
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            강의실 <span className="text-red-500">*</span>
+            강의실
           </label>
           <select
             id="classroomId"
@@ -701,7 +688,7 @@ export default function ScheduleForm({
             htmlFor="classTypeId" 
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            수업 유형 <span className="text-red-500">*</span>
+            수업 유형
           </label>
           <select
             id="classTypeId"

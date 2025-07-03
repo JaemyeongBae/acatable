@@ -131,20 +131,28 @@ export async function POST(request: NextRequest) {
       return createValidationErrorResponse(validation.errors)
     }
 
-    // 필수 관계 데이터 존재 확인
-    const [academy, subject, instructor, classroom, classType] = await Promise.all([
-      prisma.academy.findUnique({ where: { id: data.academyId } }),
-      prisma.subject.findUnique({ where: { id: data.subjectId } }),
-      prisma.instructor.findUnique({ where: { id: data.instructorId } }),
-      prisma.classroom.findUnique({ where: { id: data.classroomId } }),
-      prisma.classType.findUnique({ where: { id: data.classTypeId } })
-    ])
+    // 관계 데이터 존재 확인 (선택적 필드는 조건부 검증)
+    const checks = [
+      prisma.academy.findUnique({ where: { id: data.academyId } })
+    ]
+    
+    // 선택적 필드들은 값이 있을 때만 검증
+    if (data.subjectId) checks.push(prisma.subject.findUnique({ where: { id: data.subjectId } }))
+    if (data.instructorId) checks.push(prisma.instructor.findUnique({ where: { id: data.instructorId } }))
+    if (data.classroomId) checks.push(prisma.classroom.findUnique({ where: { id: data.classroomId } }))
+    if (data.classTypeId) checks.push(prisma.classType.findUnique({ where: { id: data.classTypeId } }))
+
+    const results = await Promise.all(checks)
+    const [academy] = results
 
     if (!academy) return createErrorResponse('존재하지 않는 학원입니다.', 404)
-    if (!subject) return createErrorResponse('존재하지 않는 과목입니다.', 404)
-    if (!instructor) return createErrorResponse('존재하지 않는 강사입니다.', 404)
-    if (!classroom) return createErrorResponse('존재하지 않는 강의실입니다.', 404)
-    if (!classType) return createErrorResponse('존재하지 않는 수업유형입니다.', 404)
+    
+    // 선택적 필드 검증
+    let checkIndex = 1
+    if (data.subjectId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 과목입니다.', 404)
+    if (data.instructorId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 강사입니다.', 404)
+    if (data.classroomId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 강의실입니다.', 404)
+    if (data.classTypeId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 수업유형입니다.', 404)
 
     // 시간 데이터를 HH:MM 문자열 형식으로 유지
     const validateTimeFormat = (timeStr: string): boolean => {
@@ -156,23 +164,27 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('시간 형식이 올바르지 않습니다. (HH:MM 형식 필요)', 400)
     }
 
-    // **完화된 충돌 검증**: 경고만 출력하고 생성은 허용 (개발/테스트 환경용)
-    try {
-      const scheduleValidation = await validateCompleteSchedule({
-        instructorId: data.instructorId,
-        classroomId: data.classroomId,
-        dayOfWeek: data.dayOfWeek,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        maxStudents: data.maxStudents
-      })
+    // 강사나 강의실이 선택된 경우에만 충돌 검증 실행
+    if (data.instructorId || data.classroomId) {
+      try {
+        const scheduleValidation = await validateCompleteSchedule({
+          instructorId: data.instructorId,
+          classroomId: data.classroomId,
+          dayOfWeek: data.dayOfWeek,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          maxStudents: data.maxStudents
+        })
 
-      if (!scheduleValidation.isValid) {
-        // 충돌이 있어도 생성을 계속 진행 (개발/테스트 환경용)
-        // 프로덕션에서는 여기서 에러를 반환하도록 수정 필요
+        if (!scheduleValidation.isValid) {
+          // 충돌이 있어도 생성을 계속 진행 (개발/테스트 환경용)
+          // 프로덕션에서는 여기서 에러를 반환하도록 수정 필요
+          console.warn('시간표 충돌 감지:', scheduleValidation.conflicts)
+        }
+      } catch (conflictError) {
+        // 충돌 검증 중 오류가 발생해도 계속 진행
+        console.warn('충돌 검증 중 오류:', conflictError)
       }
-    } catch (conflictError) {
-      // 충돌 검증 중 오류가 발생해도 계속 진행
     }
 
     // 트랜잭션으로 시간표 생성
@@ -187,22 +199,11 @@ export async function POST(request: NextRequest) {
           endTime: data.endTime,
           maxStudents: data.maxStudents || null,
           academyId: data.academyId,
-          subjectId: data.subjectId,
-          instructorId: data.instructorId,
-          classroomId: data.classroomId,
-          classTypeId: data.classTypeId,
+          subjectId: data.subjectId || null,
+          instructorId: data.instructorId || null,
+          classroomId: data.classroomId || null,
+          classTypeId: data.classTypeId || null,
           color: data.color || '#BFDBFE' // 색상 필드 추가
-        },
-        include: {
-          subject: { select: { name: true, color: true } },
-          instructor: { 
-          select: { 
-            id: true,
-            user: { select: { name: true } } 
-          } 
-        },
-          classroom: { select: { name: true } },
-          classType: { select: { name: true, color: true } }
         }
       })
 
@@ -232,13 +233,10 @@ export async function POST(request: NextRequest) {
       title: newSchedule.title,
       description: newSchedule.description,
       dayOfWeek: newSchedule.dayOfWeek,
-      startTime: newSchedule.startTime, // 이미 HH:MM 형식
-      endTime: newSchedule.endTime, // 이미 HH:MM 형식
+      startTime: newSchedule.startTime,
+      endTime: newSchedule.endTime,
       maxStudents: newSchedule.maxStudents,
-      subject: newSchedule.subject,
-      instructor: { name: newSchedule.instructor.user.name },
-      classroom: newSchedule.classroom,
-      classType: newSchedule.classType,
+      color: newSchedule.color,
       createdAt: newSchedule.createdAt
     }, '시간표가 성공적으로 생성되었습니다.')
 

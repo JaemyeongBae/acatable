@@ -180,9 +180,9 @@ model Schedule {
   
   // 연결 정보
   academyId    String
-  subjectId    String
-  instructorId String
-  classroomId  String
+  subjectId    String?
+  instructorId String?
+  classroomId  String?
   classTypeId  String?
   
   // 표시 정보
