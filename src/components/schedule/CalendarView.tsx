@@ -653,11 +653,11 @@ export default function CalendarView({
     const headerHeight = headerElement ? headerElement.getBoundingClientRect().height : 60
     const top = (relativeStart / 15) * slotHeight + headerHeight
 
-    // 기존 스케줄 이동 vs 새 스케줄 생성에 따라 색상 구분
+    // 모든 드래그 피드백을 초록색으로 통일 (시각적 일관성)
+    const guidelineColor = 'border-green-400'
+    const textColor = 'text-green-600'
+    const bgColor = 'bg-green-50'
     const isMovingExisting = !!draggedSchedule
-    const guidelineColor = isMovingExisting ? 'border-green-400' : 'border-blue-400'
-    const textColor = isMovingExisting ? 'text-green-600' : 'text-blue-600'
-    const bgColor = isMovingExisting ? 'bg-green-50' : 'bg-blue-50'
 
     // 드래그 영역 계산 (기존 시간표 이동과 새 시간표 생성 모두 처리)
     let dragAreaTop = top
@@ -687,42 +687,80 @@ export default function CalendarView({
     }
 
     return (
-      <div className="absolute inset-0 pointer-events-none z-15">
-        {/* 드래그 영역 미리보기 (기존 이동과 새 생성 모두) */}
+      <div className="absolute inset-0 pointer-events-none z-20">
+        {/* 드래그 영역 미리보기 (기존 이동과 새 생성 모두 초록색으로 통일) */}
         {dragAreaHeight > 0 && (
           <div 
-            className={`absolute border-2 border-dashed ${guidelineColor} ${bgColor} opacity-60 rounded`}
+            className={`absolute border-2 border-dashed ${guidelineColor} ${bgColor} opacity-80 rounded shadow-lg`}
             style={{ 
-              left: `${80 + (dragCurrent.day * ((100 - 13) / displayDays.length))}%`,
-              width: `${(100 - 13) / displayDays.length}%`,
+              // 정확한 요일 위치 계산
+              left: `calc(80px + ${dragCurrent.day} * (100% - 80px) / ${displayDays.length})`,
+              width: `calc((100% - 80px) / ${displayDays.length} - 2px)`,
               top: `${dragAreaTop}px`,
               height: `${dragAreaHeight}px`,
-              transform: 'translateX(2px)'
+              marginLeft: '1px'
             }}
           >
-            <div className={`absolute inset-0 border ${isMovingExisting ? 'border-green-300' : 'border-blue-300'} rounded animate-ping opacity-30`}></div>
-            <div className={`p-1 text-xs ${isMovingExisting ? 'text-green-700' : 'text-blue-700'} font-medium`}>
-              {isMovingExisting ? draggedSchedule?.title : '새 수업'}
+            <div className="absolute inset-0 border border-green-300 rounded animate-pulse opacity-40"></div>
+            
+            {/* 드래그 박스 내부 정보 표시 */}
+            <div className="p-2 h-full flex flex-col justify-center items-center text-center">
+              {isMovingExisting && draggedSchedule ? (
+                // 기존 시간표 이동 시
+                <>
+                  <div className="text-xs font-bold text-green-800 mb-1">{draggedSchedule.title}</div>
+                  <div className="text-xs text-green-600 font-medium">
+                    {(() => {
+                      const originalStart = timeToMinutes(draggedSchedule.startTime)
+                      const originalEnd = timeToMinutes(draggedSchedule.endTime)
+                      const duration = originalEnd - originalStart
+                      const newStartTime = minutesToTime(dragCurrent.time)
+                      const newEndTime = minutesToTime(dragCurrent.time + duration)
+                      return `${newStartTime} - ${newEndTime}`
+                    })()}
+                  </div>
+                  <div className="text-xs text-green-500 mt-1">📍 {displayDays[dragCurrent.day]}</div>
+                </>
+              ) : (
+                // 새 시간표 생성 시
+                dragStart && dragCurrent && (
+                  <>
+                    <div className="text-xs font-bold text-green-800 mb-1">✨ 새 수업</div>
+                    <div className="text-xs text-green-600 font-medium">
+                      {(() => {
+                        const startMinutes = Math.min(dragStart.time, dragCurrent.time)
+                        const endMinutes = Math.max(dragStart.time, dragCurrent.time)
+                        const finalEndMinutes = Math.max(endMinutes, startMinutes + 30)
+                        return `${minutesToTime(snapToGrid(startMinutes))} - ${minutesToTime(snapToGrid(finalEndMinutes))}`
+                      })()}
+                    </div>
+                    <div className="text-xs text-green-500 mt-1">⏰ {displayDays[dragCurrent.day]}</div>
+                  </>
+                )
+              )}
             </div>
           </div>
         )}
 
-        {/* 가로 가이드라인 (시간 위치) */}
+        {/* 가로 가이드라인 (시간 위치) - 더 굵고 명확하게 */}
         <div 
-          className={`absolute left-0 right-0 border-t-2 border-dashed ${guidelineColor} opacity-70`}
-          style={{ top: `${top}px` }}
+          className={`absolute left-0 right-0 border-t-2 border-dashed ${guidelineColor} opacity-90`}
+          style={{ 
+            top: `${top}px`,
+            boxShadow: '0 1px 3px rgba(34, 197, 94, 0.3)'
+          }}
         />
 
         {/* 기존 스케줄 이동 시 상세 정보 */}
         {isMovingExisting && draggedSchedule && (
           <div 
-            className="absolute right-2 px-3 py-2 bg-green-50 rounded-lg shadow-lg border border-green-200 text-xs"
+            className="absolute right-4 px-4 py-3 bg-green-50 rounded-lg shadow-xl border-2 border-green-200 text-sm z-30"
             style={{ 
-              top: `${Math.max(0, top - 50)}px`
+              top: `${Math.max(10, top - 60)}px`
             }}
           >
-            <div className="font-semibold text-green-800">{draggedSchedule.title}</div>
-            <div className="text-green-600">
+            <div className="font-bold text-green-800 mb-1">{draggedSchedule.title}</div>
+            <div className="text-green-600 font-medium">
               {(() => {
                 const originalStart = timeToMinutes(draggedSchedule.startTime)
                 const originalEnd = timeToMinutes(draggedSchedule.endTime)
@@ -732,27 +770,29 @@ export default function CalendarView({
                 return `${newStartTime} - ${newEndTime}`
               })()}
             </div>
-            <div className="text-green-500 text-xs mt-1">이동 중...</div>
+            <div className="text-green-500 text-xs mt-1 animate-pulse">📍 이동 중...</div>
           </div>
         )}
 
-        {/* 새 시간표 생성 시 시간 범위 표시 */}
+        {/* 새 시간표 생성 시 시간 범위 표시 - 현재 마우스 위치 기반으로 실시간 업데이트 */}
         {!isMovingExisting && dragStart && dragCurrent && (
           <div 
-            className="absolute right-2 px-3 py-2 bg-blue-50 rounded-lg shadow-lg border border-blue-200 text-xs"
+            className="absolute right-4 px-4 py-3 bg-green-50 rounded-lg shadow-xl border-2 border-green-200 text-sm z-30"
             style={{ 
-              top: `${Math.max(0, dragAreaTop)}px`
+              top: `${Math.max(10, dragAreaTop)}px`
             }}
           >
-            <div className="font-semibold text-blue-800">새 수업</div>
-            <div className="text-blue-600">
+            <div className="font-bold text-green-800 mb-1">✨ 새 수업</div>
+            <div className="text-green-600 font-medium">
               {(() => {
+                // 현재 마우스 위치와 드래그 시작점을 같은 요일에서 처리
                 const startMinutes = Math.min(dragStart.time, dragCurrent.time)
                 const endMinutes = Math.max(dragStart.time, dragCurrent.time)
                 const finalEndMinutes = Math.max(endMinutes, startMinutes + 30)
                 return `${minutesToTime(snapToGrid(startMinutes))} - ${minutesToTime(snapToGrid(finalEndMinutes))}`
               })()}
             </div>
+            <div className="text-green-500 text-xs mt-1 animate-pulse">⏰ {displayDays[dragCurrent.day]} 시간 선택 중...</div>
           </div>
         )}
       </div>

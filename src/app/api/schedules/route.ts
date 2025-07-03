@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       ]
     })
 
-    // 응답 데이터 변환
+    // 응답 데이터 변환 (null 값 안전 처리)
     const responseData = schedules.map((schedule: any) => ({
       id: schedule.id,
       title: schedule.title,
@@ -95,12 +95,12 @@ export async function GET(request: NextRequest) {
       maxStudents: schedule.maxStudents,
       currentStudents: schedule.studentSchedules.length,
       subject: schedule.subject,
-      instructor: {
+      instructor: schedule.instructor ? {
         id: schedule.instructor.id,
-        name: schedule.instructor.user.name,
-        phone: schedule.instructor.user.phone,
-        specialties: schedule.instructor.specialties
-      },
+        name: schedule.instructor.user?.name || '강사 미정',
+        phone: schedule.instructor.user?.phone || '',
+        specialties: schedule.instructor.specialties || []
+      } : null,
       classroom: schedule.classroom,
       classType: schedule.classType,
       studentPreview: schedule.studentSchedules.map((s: any) => s.user.name),

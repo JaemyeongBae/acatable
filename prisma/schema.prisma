@@ -194,10 +194,10 @@ model Schedule {
 
   // 관계 설정
   academy         Academy           @relation(fields: [academyId], references: [id], onDelete: Cascade)
-  subject         Subject           @relation(fields: [subjectId], references: [id])
-  instructor      Instructor        @relation(fields: [instructorId], references: [id])
-  classroom       Classroom         @relation(fields: [classroomId], references: [id])
-  classType       ClassType         @relation(fields: [classTypeId], references: [id])
+  subject         Subject?          @relation(fields: [subjectId], references: [id])
+  instructor      Instructor?       @relation(fields: [instructorId], references: [id])
+  classroom       Classroom?        @relation(fields: [classroomId], references: [id])
+  classType       ClassType?        @relation(fields: [classTypeId], references: [id])
   studentSchedules StudentSchedule[] // 수강 학생 목록
   history         ScheduleHistory[] // 변경 이력
 
