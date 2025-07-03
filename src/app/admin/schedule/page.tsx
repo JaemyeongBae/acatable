@@ -518,7 +518,11 @@ export default function AdminSchedulePage() {
                 subjectIds: filters.subjectId ? [filters.subjectId] : undefined
               }}
               refreshKey={refreshKey}
-              onScheduleClick={handleEditSchedule}
+              onScheduleClick={(schedule) => {
+                // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
+                console.log('Schedule clicked:', schedule)
+              }}
+              onScheduleEdit={handleEditSchedule}
               onScheduleCreate={(data) => handleAddSchedule(data)}
               onScheduleUpdate={async (scheduleId, data) => {
                 try {

@@ -75,14 +75,14 @@ export async function GET(
       color: schedule.color || '#BFDBFE', // 색상 필드 추가
       academy: schedule.academy,
       subject: schedule.subject,
-      instructor: {
+      instructor: schedule.instructor ? {
         id: schedule.instructor.id,
         name: schedule.instructor.user.name,
         email: schedule.instructor.user.email,
         phone: schedule.instructor.user.phone,
         specialties: schedule.instructor.specialties,
         bio: schedule.instructor.bio
-      },
+      } : null,
       classroom: schedule.classroom,
       classType: schedule.classType,
       students: schedule.studentSchedules.map((s: any) => ({

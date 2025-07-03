@@ -332,6 +332,7 @@ export default function Home() {
           selectedDay={selectedDay}
           filters={filters}
           onScheduleClick={handleScheduleClick}
+          onScheduleEdit={handleScheduleClick}
           isReadOnly={true}
         />
       </div>

@@ -132,27 +132,29 @@ export async function POST(request: NextRequest) {
     }
 
     // 관계 데이터 존재 확인 (선택적 필드는 조건부 검증)
-    const checks = [
-      prisma.academy.findUnique({ where: { id: data.academyId } })
-    ]
-    
-    // 선택적 필드들은 값이 있을 때만 검증
-    if (data.subjectId) checks.push(prisma.subject.findUnique({ where: { id: data.subjectId } }))
-    if (data.instructorId) checks.push(prisma.instructor.findUnique({ where: { id: data.instructorId } }))
-    if (data.classroomId) checks.push(prisma.classroom.findUnique({ where: { id: data.classroomId } }))
-    if (data.classTypeId) checks.push(prisma.classType.findUnique({ where: { id: data.classTypeId } }))
-
-    const results = await Promise.all(checks)
-    const [academy] = results
-
+    const academy = await prisma.academy.findUnique({ where: { id: data.academyId } })
     if (!academy) return createErrorResponse('존재하지 않는 학원입니다.', 404)
     
-    // 선택적 필드 검증
-    let checkIndex = 1
-    if (data.subjectId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 과목입니다.', 404)
-    if (data.instructorId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 강사입니다.', 404)
-    if (data.classroomId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 강의실입니다.', 404)
-    if (data.classTypeId && !results[checkIndex++]) return createErrorResponse('존재하지 않는 수업유형입니다.', 404)
+    // 선택적 필드들은 값이 있을 때만 검증
+    if (data.subjectId) {
+      const subject = await prisma.subject.findUnique({ where: { id: data.subjectId } })
+      if (!subject) return createErrorResponse('존재하지 않는 과목입니다.', 404)
+    }
+    
+    if (data.instructorId) {
+      const instructor = await prisma.instructor.findUnique({ where: { id: data.instructorId } })
+      if (!instructor) return createErrorResponse('존재하지 않는 강사입니다.', 404)
+    }
+    
+    if (data.classroomId) {
+      const classroom = await prisma.classroom.findUnique({ where: { id: data.classroomId } })
+      if (!classroom) return createErrorResponse('존재하지 않는 강의실입니다.', 404)
+    }
+    
+    if (data.classTypeId) {
+      const classType = await prisma.classType.findUnique({ where: { id: data.classTypeId } })
+      if (!classType) return createErrorResponse('존재하지 않는 수업유형입니다.', 404)
+    }
 
     // 시간 데이터를 HH:MM 문자열 형식으로 유지
     const validateTimeFormat = (timeStr: string): boolean => {

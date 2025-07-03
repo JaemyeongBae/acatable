@@ -31,6 +31,7 @@ interface CalendarViewProps {
   onScheduleCreate?: (schedule: any) => void
   onScheduleUpdate?: (id: string, schedule: any) => void
   onScheduleClick?: (schedule: any) => void
+  onScheduleEdit?: (schedule: any) => void
   onScheduleDelete?: (id: string) => void
   isReadOnly?: boolean // 읽기 전용 모드 (드래그 비활성화)
 }
@@ -79,6 +80,7 @@ export default function CalendarView({
   onScheduleCreate, 
   onScheduleUpdate, 
   onScheduleClick, 
+  onScheduleEdit,
   onScheduleDelete,
   isReadOnly = false 
 }: CalendarViewProps) {
@@ -100,6 +102,20 @@ export default function CalendarView({
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState<{ day: number; time: number } | null>(null)
   const [dragCurrent, setDragCurrent] = useState<{ day: number; time: number } | null>(null)
+  
+  // 장시간 클릭 감지를 위한 상태
+  const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null)
+  const [isLongPress, setIsLongPress] = useState(false)
+  const [pressStartTime, setPressStartTime] = useState<number>(0)
+  
+  // 컴포넌트 언마운트 시 타이머 정리
+  React.useEffect(() => {
+    return () => {
+      if (pressTimer) {
+        clearTimeout(pressTimer)
+      }
+    }
+  }, [pressTimer])
   const [draggedSchedule, setDraggedSchedule] = useState<any>(null)
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
@@ -399,6 +415,78 @@ export default function CalendarView({
   }, [isDragging, draggedSchedule, dragOffset, dragStart, dragCurrent, getTimeAndDayFromBlockPosition, getTimeAndDayFromPosition, onScheduleCreate, onScheduleUpdate])
 
   // 드래그 시작
+  // 새로운 마우스 다운 핸들러 (장시간 클릭 감지)
+  const handleScheduleMouseDown = useCallback((e: React.MouseEvent, schedule: any) => {
+    // 읽기 전용 모드에서는 아무것도 하지 않음
+    if (isReadOnly) return
+    
+    e.preventDefault()
+    e.stopPropagation()
+    
+    const startTime = Date.now()
+    setPressStartTime(startTime)
+    setIsLongPress(false)
+    
+    // 마우스 위치와 요소 정보를 저장
+    const scheduleElement = e.currentTarget as HTMLElement
+    if (!scheduleElement) return
+    
+    const rect = scheduleElement.getBoundingClientRect()
+    const offsetX = e.clientX - rect.left
+    const offsetY = e.clientY - rect.top
+    
+    // 0.5초 후 장시간 클릭으로 간주하고 드래그 모드 시작
+    const timer = setTimeout(() => {
+      setIsLongPress(true)
+      // 저장된 정보로 드래그 모드 시작
+      setDragOffset({ x: offsetX, y: offsetY })
+      setDraggedSchedule(schedule)
+      
+      const scheduleStartTime = timeToMinutes(schedule.startTime)
+      const scheduleDay = schedule.dayOfWeek in DAY_OF_WEEK_TO_NUMBER ? DAY_OF_WEEK_TO_NUMBER[schedule.dayOfWeek as DayOfWeek] : 0
+      
+      setDragStart({ day: scheduleDay, time: scheduleStartTime })
+      setDragCurrent({ day: scheduleDay, time: scheduleStartTime })
+      setIsDragging(true)
+    }, 500)
+    
+    setPressTimer(timer)
+  }, [isReadOnly])
+
+  // 마우스 업 핸들러
+  const handleScheduleMouseUp = useCallback((e: React.MouseEvent, schedule: any) => {
+    if (isReadOnly) return
+    
+    // 타이머 정리
+    if (pressTimer) {
+      clearTimeout(pressTimer)
+      setPressTimer(null)
+    }
+    
+    const pressDuration = Date.now() - pressStartTime
+    
+    // 0.5초 미만의 짧은 클릭 → 수정 모드
+    if (pressDuration < 500 && !isLongPress) {
+      onScheduleEdit?.(schedule)
+    }
+    
+    // 드래그 종료 처리 (장시간 클릭이었던 경우)
+    if (isLongPress && isDragging) {
+      // 드래그 상태 직접 종료
+      setIsDragging(false)
+      setDraggedSchedule(null)
+      setDragStart(null)
+      setDragCurrent(null)
+      setDragOffset(null)
+      setMousePosition(null)
+    }
+    
+    setIsLongPress(false)
+    setPressStartTime(0)
+  }, [isReadOnly, pressTimer, pressStartTime, isLongPress, isDragging, onScheduleEdit])
+
+
+  // 기존 handleMouseDown 함수 (빈 영역 클릭용)
   const handleMouseDown = useCallback((e: React.MouseEvent, schedule?: any) => {
     // 읽기 전용 모드에서는 드래그 비활성화
     if (isReadOnly) return
@@ -406,26 +494,7 @@ export default function CalendarView({
     e.preventDefault()
     e.stopPropagation()
     
-    if (schedule) {
-      // 기존 시간표 드래그 시작 - 정확한 오프셋 계산
-      const scheduleElement = e.currentTarget as HTMLElement
-      const rect = scheduleElement.getBoundingClientRect()
-      
-      // 마우스가 스케줄 블록 내에서 클릭한 상대적 위치 계산
-      const offsetX = e.clientX - rect.left
-      const offsetY = e.clientY - rect.top
-      setDragOffset({ x: offsetX, y: offsetY })
-      
-      setDraggedSchedule(schedule)
-      
-      // 스케줄의 실제 시작 시간과 요일을 기준으로 설정 (마우스 위치가 아닌)
-      const scheduleStartTime = timeToMinutes(schedule.startTime)
-      const scheduleDay = schedule.dayOfWeek in DAY_OF_WEEK_TO_NUMBER ? DAY_OF_WEEK_TO_NUMBER[schedule.dayOfWeek as DayOfWeek] : 0
-      
-      // 드래그 시작과 현재 위치를 스케줄의 실제 위치로 설정
-      setDragStart({ day: scheduleDay, time: scheduleStartTime })
-      setDragCurrent({ day: scheduleDay, time: scheduleStartTime })
-    } else {
+    if (!schedule) {
       // 새 시간표 생성 시작
       setDragOffset(null)
       setDraggedSchedule(null)
@@ -435,10 +504,11 @@ export default function CalendarView({
         setDragStart(position)
         setDragCurrent(position)
       }
+      
+      setIsDragging(true)
     }
-    
-    setIsDragging(true)
   }, [isReadOnly, getTimeAndDayFromPosition])
+
 
   // 드래그 중
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -557,7 +627,8 @@ export default function CalendarView({
           borderStyle: 'solid',
           opacity: 0.9
         }}
-        onMouseDown={(e) => handleMouseDown(e, schedule)}
+        onMouseDown={(e) => handleScheduleMouseDown(e, schedule)}
+        onMouseUp={(e) => handleScheduleMouseUp(e, schedule)}
         onClick={() => onScheduleClick?.(schedule)}
       >
         {/* 첫 번째 줄: 시간 */}
