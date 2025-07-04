@@ -611,6 +611,9 @@ export default function CalendarView({
 
     const textColor = isLightColor(scheduleColor) ? 'text-gray-800' : 'text-white'
 
+    // 45분 이내 짧은 수업인지 확인
+    const isShortClass = duration <= 45
+
     return (
       <div
         key={schedule.id}
@@ -631,25 +634,40 @@ export default function CalendarView({
         onMouseUp={(e) => handleScheduleMouseUp(e, schedule)}
         onClick={() => onScheduleClick?.(schedule)}
       >
-        {/* 첫 번째 줄: 시간 */}
-        <div className={`text-xs mb-1 ${textColor}`}>
-          {schedule.startTime} - {schedule.endTime}
-        </div>
-        
-        {/* 두 번째 줄: 강좌명 (굵게) */}
-        <div className={`font-bold text-xs truncate mb-1 ${textColor}`}>
-          {schedule.title}
-        </div>
-        
-        {/* 세 번째 줄: 강사명 (좌측, 굵게) + 강의실명 (우측) */}
-        <div className="flex justify-between items-start">
-          <div className={`font-bold text-xs truncate flex-1 mr-3 ${textColor}`}>
-            {schedule.instructor ? schedule.instructor.name : '강사 미정'}
-          </div>
-          <div className={`text-xs whitespace-nowrap ${textColor}`}>
-            {schedule.classroom ? schedule.classroom.name : '강의실 미정'}
-          </div>
-        </div>
+        {isShortClass ? (
+          // 45분 이내 짧은 수업: 수업명과 강사명만 한 줄로 표시
+          <>
+            <div className={`font-bold text-xs truncate mb-1 ${textColor}`}>
+              {schedule.title} - {schedule.instructor ? schedule.instructor.name : '강사 미정'}
+            </div>
+            <div className={`text-xs ${textColor}`}>
+              {schedule.startTime} - {schedule.endTime}
+            </div>
+          </>
+        ) : (
+          // 45분 초과 수업: 기존 3줄 레이아웃 유지
+          <>
+            {/* 첫 번째 줄: 시간 */}
+            <div className={`text-xs mb-1 ${textColor}`}>
+              {schedule.startTime} - {schedule.endTime}
+            </div>
+            
+            {/* 두 번째 줄: 강좌명 (굵게) */}
+            <div className={`font-bold text-xs truncate mb-1 ${textColor}`}>
+              {schedule.title}
+            </div>
+            
+            {/* 세 번째 줄: 강사명 (좌측, 굵게) + 강의실명 (우측) */}
+            <div className="flex justify-between items-start">
+              <div className={`font-bold text-xs truncate flex-1 mr-3 ${textColor}`}>
+                {schedule.instructor ? schedule.instructor.name : '강사 미정'}
+              </div>
+              <div className={`text-xs whitespace-nowrap ${textColor}`}>
+                {schedule.classroom ? schedule.classroom.name : '강의실 미정'}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     )
   }

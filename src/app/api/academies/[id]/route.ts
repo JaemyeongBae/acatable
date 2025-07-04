@@ -11,10 +11,10 @@ import { createSuccessResponse, createNotFoundResponse, createInternalServerErro
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await context.params
 
     // 학원 조회
     const academy = await prisma.academy.findUnique({

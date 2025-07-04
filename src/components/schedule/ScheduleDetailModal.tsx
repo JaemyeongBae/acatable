@@ -16,10 +16,10 @@ interface ScheduleDetailModalProps {
     endTime: string
     maxStudents?: number
     currentStudents?: number
-    instructor: { name: string }
-    classroom: { name: string }
-    subject: { name: string; color?: string }
-    classType: { name: string; color?: string }
+    instructor?: { name: string } | null
+    classroom?: { name: string } | null
+    subject?: { name: string; color?: string } | null
+    classType?: { name: string; color?: string } | null
   }
   onClose: () => void
 }
@@ -94,28 +94,32 @@ export default function ScheduleDetailModal({ schedule, onClose }: ScheduleDetai
           {/* 기본 정보 */}
           <div className="grid grid-cols-2 gap-4">
             {/* 과목 */}
-            <div className="flex items-center space-x-3">
-              <div 
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: schedule.subject.color || '#3B82F6' }}
-              ></div>
-              <div>
-                <p className="text-sm text-gray-500">과목</p>
-                <p className="font-medium text-gray-900">{schedule.subject.name}</p>
+            {schedule.subject && (
+              <div className="flex items-center space-x-3">
+                <div 
+                  className="w-4 h-4 rounded-full"
+                  style={{ backgroundColor: schedule.subject?.color || '#3B82F6' }}
+                ></div>
+                <div>
+                  <p className="text-sm text-gray-500">과목</p>
+                  <p className="font-medium text-gray-900">{schedule.subject.name}</p>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* 수업 유형 */}
-            <div className="flex items-center space-x-3">
-              <div 
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: schedule.classType.color || '#6B7280' }}
-              ></div>
-              <div>
-                <p className="text-sm text-gray-500">수업 유형</p>
-                <p className="font-medium text-gray-900">{schedule.classType.name}</p>
+            {schedule.classType && (
+              <div className="flex items-center space-x-3">
+                <div 
+                  className="w-4 h-4 rounded-full"
+                  style={{ backgroundColor: schedule.classType?.color || '#6B7280' }}
+                ></div>
+                <div>
+                  <p className="text-sm text-gray-500">수업 유형</p>
+                  <p className="font-medium text-gray-900">{schedule.classType.name}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* 시간 정보 */}
@@ -149,30 +153,34 @@ export default function ScheduleDetailModal({ schedule, onClose }: ScheduleDetai
           {/* 장소 및 담당자 정보 */}
           <div className="grid grid-cols-1 gap-4">
             {/* 강사 */}
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <div className="flex-shrink-0">
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+            {schedule.instructor && (
+              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <div className="flex-shrink-0">
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">담당 강사</p>
+                  <p className="font-medium text-gray-900">{schedule.instructor.name}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">담당 강사</p>
-                <p className="font-medium text-gray-900">{schedule.instructor.name}</p>
-              </div>
-            </div>
+            )}
 
             {/* 강의실 */}
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <div className="flex-shrink-0">
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
+            {schedule.classroom && (
+              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <div className="flex-shrink-0">
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">강의실</p>
+                  <p className="font-medium text-gray-900">{schedule.classroom.name}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">강의실</p>
-                <p className="font-medium text-gray-900">{schedule.classroom.name}</p>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* 수강 인원 정보 */}

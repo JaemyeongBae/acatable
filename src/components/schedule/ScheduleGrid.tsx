@@ -14,10 +14,10 @@ interface ScheduleItem {
   dayOfWeek: DayOfWeek
   startTime: string
   endTime: string
-  instructor: { name: string }
-  classroom: { name: string }
-  subject: { name: string; color?: string }
-  classType: { name: string; color?: string }
+  instructor?: { name: string } | null
+  classroom?: { name: string } | null
+  subject?: { name: string; color?: string } | null
+  classType?: { name: string; color?: string } | null
 }
 
 interface ScheduleGridProps {
@@ -257,11 +257,11 @@ export default function ScheduleGrid({
                             <div
                               className="p-2 rounded-md border-l-4 bg-blue-50 border-blue-400 hover:bg-blue-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                               style={{
-                                borderLeftColor: schedule.subject.color || '#3B82F6'
+                                borderLeftColor: schedule.subject?.color || '#3B82F6'
                               }}
                               tabIndex={0}
                               role="button"
-                              aria-label={`${schedule.title} 강의, ${schedule.startTime}부터 ${schedule.endTime}까지, ${schedule.instructor.name} 강사, ${schedule.classroom.name}`}
+                              aria-label={`${schedule.title} 강의, ${schedule.startTime}부터 ${schedule.endTime}까지, ${schedule.instructor?.name || '강사 미정'} 강사, ${schedule.classroom?.name || '강의실 미정'}`}
                               onClick={() => {
                                 if (onEdit) {
                                   onEdit(schedule)
@@ -287,7 +287,7 @@ export default function ScheduleGrid({
                                 {schedule.startTime} - {schedule.endTime}
                               </div>
                               <div className="text-xs text-gray-500 mt-1">
-                                {schedule.instructor.name} · {schedule.classroom.name}
+                                {schedule.instructor?.name || '강사 미정'} · {schedule.classroom?.name || '강의실 미정'}
                               </div>
                             </div>
                             
@@ -381,7 +381,7 @@ export default function ScheduleGrid({
                           key={schedule.id}
                           className="text-xs p-1 rounded border-l-2 bg-blue-50 border-blue-400 mb-1 cursor-pointer hover:bg-blue-100 transition-colors"
                           style={{
-                            borderLeftColor: schedule.subject.color || '#3B82F6'
+                            borderLeftColor: schedule.subject?.color || '#3B82F6'
                           }}
                           tabIndex={0}
                           role="button"
@@ -441,11 +441,11 @@ export default function ScheduleGrid({
                       <div
                         className="p-3 border-l-4 bg-blue-50 border-blue-400 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
                         style={{
-                          borderLeftColor: schedule.subject.color || '#3B82F6'
+                          borderLeftColor: schedule.subject?.color || '#3B82F6'
                         }}
                         role="listitem button"
                         tabIndex={0}
-                        aria-label={`${schedule.title} 강의, ${schedule.startTime}부터 ${schedule.endTime}까지, ${schedule.instructor.name} 강사, ${schedule.classroom.name}`}
+                        aria-label={`${schedule.title} 강의, ${schedule.startTime}부터 ${schedule.endTime}까지, ${schedule.instructor?.name || '강사 미정'} 강사, ${schedule.classroom?.name || '강의실 미정'}`}
                         onClick={() => {
                           if (onEdit) {
                             onEdit(schedule)
@@ -475,22 +475,24 @@ export default function ScheduleGrid({
                         <div className="flex flex-wrap gap-2 text-xs">
                           <span 
                             className="bg-gray-100 px-2 py-1 rounded"
-                            aria-label={`강사: ${schedule.instructor.name}`}
+                            aria-label={`강사: ${schedule.instructor?.name || '강사 미정'}`}
                           >
-                            {schedule.instructor.name}
+                            {schedule.instructor?.name || '강사 미정'}
                           </span>
                           <span 
                             className="bg-gray-100 px-2 py-1 rounded"
-                            aria-label={`강의실: ${schedule.classroom.name}`}
+                            aria-label={`강의실: ${schedule.classroom?.name || '강의실 미정'}`}
                           >
-                            {schedule.classroom.name}
+                            {schedule.classroom?.name || '강의실 미정'}
                           </span>
-                          <span 
-                            className="bg-blue-100 text-blue-800 px-2 py-1 rounded"
-                            aria-label={`과목: ${schedule.subject.name}`}
-                          >
-                            {schedule.subject.name}
-                          </span>
+                          {schedule.subject && (
+                            <span 
+                              className="bg-blue-100 text-blue-800 px-2 py-1 rounded"
+                              aria-label={`과목: ${schedule.subject.name}`}
+                            >
+                              {schedule.subject.name}
+                            </span>
+                          )}
                         </div>
                       </div>
                       
