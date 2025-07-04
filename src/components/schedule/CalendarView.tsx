@@ -108,6 +108,13 @@ export default function CalendarView({
   const [isLongPress, setIsLongPress] = useState(false)
   const [pressStartTime, setPressStartTime] = useState<number>(0)
   
+  // 리사이즈 관련 상태
+  const [isResizing, setIsResizing] = useState(false)
+  const [resizeMode, setResizeMode] = useState<'top' | 'bottom' | null>(null)
+  const [originalSchedule, setOriginalSchedule] = useState<any>(null)
+  const [resizeStartTime, setResizeStartTime] = useState<number>(0)
+  const [resizeEndTime, setResizeEndTime] = useState<number>(0)
+  
   // 컴포넌트 언마운트 시 타이머 정리
   React.useEffect(() => {
     return () => {
@@ -344,7 +351,29 @@ export default function CalendarView({
       // 마우스 위치 추적 (항상 업데이트)
       setMousePosition({ x: e.clientX, y: e.clientY })
       
-      if (draggedSchedule && dragOffset) {
+      if (isResizing && originalSchedule) {
+        // 리사이즈 모드: 시작/종료 시간 개별 조정
+        const position = getTimeAndDayFromPosition(e.clientX, e.clientY)
+        if (position) {
+          const newTime = snapToGrid(position.time)
+          
+          if (resizeMode === 'top') {
+            // 상단 리사이즈: 시작 시간 조정 (종료 시간 고정)
+            const minTime = resizeEndTime - (12 * 60) // 최대 12시간
+            const maxTime = resizeEndTime - 15 // 최소 15분 보장
+            const clampedTime = Math.max(minTime, Math.min(maxTime, newTime))
+            setResizeStartTime(clampedTime)
+          } else if (resizeMode === 'bottom') {
+            // 하단 리사이즈: 종료 시간 조정 (시작 시간 고정)
+            const minTime = resizeStartTime + 15 // 최소 15분 보장
+            const maxTime = resizeStartTime + (12 * 60) // 최대 12시간
+            const clampedTime = Math.max(minTime, Math.min(maxTime, newTime))
+            setResizeEndTime(clampedTime)
+          }
+          
+          setDragCurrent(position)
+        }
+      } else if (draggedSchedule && dragOffset) {
         // 기존 시간표 이동 시 블록 위치 기반 계산
         const position = getTimeAndDayFromBlockPosition(e.clientX, e.clientY, dragOffset)
         // 영역 밖에서도 항상 위치 업데이트 (null 체크 제거)
@@ -362,7 +391,17 @@ export default function CalendarView({
     }
 
     const handleGlobalMouseUp = () => {
-      if (draggedSchedule && dragCurrent) {
+      if (isResizing && originalSchedule) {
+        // 리사이즈 모드: 시작/종료 시간 업데이트
+        const startTime = minutesToTime(resizeStartTime)
+        const endTime = minutesToTime(resizeEndTime)
+
+        onScheduleUpdate?.(originalSchedule.id, {
+          dayOfWeek: originalSchedule.dayOfWeek, // 요일은 변경하지 않음
+          startTime: new Date(`1970-01-01T${startTime}:00`),
+          endTime: new Date(`1970-01-01T${endTime}:00`)
+        })
+      } else if (draggedSchedule && dragCurrent) {
         // 기존 시간표 이동
         const startTime = minutesToTime(dragCurrent.time)
         const originalStart = timeToMinutes(draggedSchedule.startTime)
@@ -402,6 +441,9 @@ export default function CalendarView({
       setDraggedSchedule(null)
       setDragOffset(null)
       setMousePosition(null)
+      setIsResizing(false)
+      setResizeMode(null)
+      setOriginalSchedule(null)
     }
 
     // 전역 이벤트 리스너 등록
@@ -412,10 +454,24 @@ export default function CalendarView({
       document.removeEventListener('mousemove', handleGlobalMouseMove)
       document.removeEventListener('mouseup', handleGlobalMouseUp)
     }
-  }, [isDragging, draggedSchedule, dragOffset, dragStart, dragCurrent, getTimeAndDayFromBlockPosition, getTimeAndDayFromPosition, onScheduleCreate, onScheduleUpdate])
+  }, [isDragging, draggedSchedule, dragOffset, dragStart, dragCurrent, isResizing, originalSchedule, resizeMode, resizeStartTime, resizeEndTime, getTimeAndDayFromBlockPosition, getTimeAndDayFromPosition, onScheduleCreate, onScheduleUpdate])
 
   // 드래그 시작
-  // 새로운 마우스 다운 핸들러 (장시간 클릭 감지)
+  // 리사이즈 영역 감지 함수
+  const getResizeMode = useCallback((e: React.MouseEvent, scheduleElement: HTMLElement): 'top' | 'bottom' | null => {
+    const rect = scheduleElement.getBoundingClientRect()
+    const offsetY = e.clientY - rect.top
+    const resizeZone = 10 // 위/아래 10px 영역을 리사이즈 영역으로 설정
+    
+    if (offsetY <= resizeZone) {
+      return 'top'
+    } else if (offsetY >= rect.height - resizeZone) {
+      return 'bottom'
+    }
+    return null
+  }, [])
+
+  // 새로운 마우스 다운 핸들러 (리사이즈 및 드래그 감지)
   const handleScheduleMouseDown = useCallback((e: React.MouseEvent, schedule: any) => {
     // 읽기 전용 모드에서는 아무것도 하지 않음
     if (isReadOnly) return
@@ -423,11 +479,6 @@ export default function CalendarView({
     e.preventDefault()
     e.stopPropagation()
     
-    const startTime = Date.now()
-    setPressStartTime(startTime)
-    setIsLongPress(false)
-    
-    // 마우스 위치와 요소 정보를 저장
     const scheduleElement = e.currentTarget as HTMLElement
     if (!scheduleElement) return
     
@@ -435,27 +486,60 @@ export default function CalendarView({
     const offsetX = e.clientX - rect.left
     const offsetY = e.clientY - rect.top
     
-    // 0.5초 후 장시간 클릭으로 간주하고 드래그 모드 시작
-    const timer = setTimeout(() => {
-      setIsLongPress(true)
-      // 저장된 정보로 드래그 모드 시작
-      setDragOffset({ x: offsetX, y: offsetY })
-      setDraggedSchedule(schedule)
-      
-      const scheduleStartTime = timeToMinutes(schedule.startTime)
-      const scheduleDay = schedule.dayOfWeek in DAY_OF_WEEK_TO_NUMBER ? DAY_OF_WEEK_TO_NUMBER[schedule.dayOfWeek as DayOfWeek] : 0
-      
-      setDragStart({ day: scheduleDay, time: scheduleStartTime })
-      setDragCurrent({ day: scheduleDay, time: scheduleStartTime })
-      setIsDragging(true)
-    }, 500)
+    // 리사이즈 모드 확인
+    const resizeType = getResizeMode(e, scheduleElement)
     
-    setPressTimer(timer)
-  }, [isReadOnly])
+    if (resizeType) {
+      // 리사이즈 모드 시작
+      setIsResizing(true)
+      setResizeMode(resizeType)
+      setOriginalSchedule(schedule)
+      setResizeStartTime(timeToMinutes(schedule.startTime))
+      setResizeEndTime(timeToMinutes(schedule.endTime))
+      setIsDragging(true) // 드래그 상태도 활성화하여 마우스 이벤트 처리
+      
+      const scheduleDay = schedule.dayOfWeek in DAY_OF_WEEK_TO_NUMBER ? DAY_OF_WEEK_TO_NUMBER[schedule.dayOfWeek as DayOfWeek] : 0
+      setDragStart({ day: scheduleDay, time: timeToMinutes(schedule.startTime) })
+      setDragCurrent({ day: scheduleDay, time: timeToMinutes(schedule.startTime) })
+    } else {
+      // 기존 이동 모드 (장시간 클릭 감지)
+      const startTime = Date.now()
+      setPressStartTime(startTime)
+      setIsLongPress(false)
+      
+      // 0.5초 후 장시간 클릭으로 간주하고 드래그 모드 시작
+      const timer = setTimeout(() => {
+        setIsLongPress(true)
+        // 저장된 정보로 드래그 모드 시작
+        setDragOffset({ x: offsetX, y: offsetY })
+        setDraggedSchedule(schedule)
+        
+        const scheduleStartTime = timeToMinutes(schedule.startTime)
+        const scheduleDay = schedule.dayOfWeek in DAY_OF_WEEK_TO_NUMBER ? DAY_OF_WEEK_TO_NUMBER[schedule.dayOfWeek as DayOfWeek] : 0
+        
+        setDragStart({ day: scheduleDay, time: scheduleStartTime })
+        setDragCurrent({ day: scheduleDay, time: scheduleStartTime })
+        setIsDragging(true)
+      }, 500)
+      
+      setPressTimer(timer)
+    }
+  }, [isReadOnly, getResizeMode])
 
   // 마우스 업 핸들러
   const handleScheduleMouseUp = useCallback((e: React.MouseEvent, schedule: any) => {
     if (isReadOnly) return
+    
+    // 리사이즈 모드였다면 즉시 종료
+    if (isResizing) {
+      setIsResizing(false)
+      setResizeMode(null)
+      setOriginalSchedule(null)
+      setIsDragging(false)
+      setDragStart(null)
+      setDragCurrent(null)
+      return
+    }
     
     // 타이머 정리
     if (pressTimer) {
@@ -483,7 +567,7 @@ export default function CalendarView({
     
     setIsLongPress(false)
     setPressStartTime(0)
-  }, [isReadOnly, pressTimer, pressStartTime, isLongPress, isDragging, onScheduleEdit])
+  }, [isReadOnly, pressTimer, pressStartTime, isLongPress, isDragging, isResizing, onScheduleEdit])
 
 
   // 기존 handleMouseDown 함수 (빈 영역 클릭용)
@@ -519,7 +603,29 @@ export default function CalendarView({
     // 마우스 위치 추적 (항상 업데이트)
     setMousePosition({ x: e.clientX, y: e.clientY })
 
-    if (draggedSchedule && dragOffset) {
+    if (isResizing && originalSchedule) {
+      // 리사이즈 모드: 시작/종료 시간 개별 조정
+      const position = getTimeAndDayFromPosition(e.clientX, e.clientY)
+      if (position) {
+        const newTime = snapToGrid(position.time)
+        
+        if (resizeMode === 'top') {
+          // 상단 리사이즈: 시작 시간 조정 (종료 시간 고정)
+          const minTime = resizeEndTime - (12 * 60) // 최대 12시간
+          const maxTime = resizeEndTime - 15 // 최소 15분 보장
+          const clampedTime = Math.max(minTime, Math.min(maxTime, newTime))
+          setResizeStartTime(clampedTime)
+        } else if (resizeMode === 'bottom') {
+          // 하단 리사이즈: 종료 시간 조정 (시작 시간 고정)
+          const minTime = resizeStartTime + 15 // 최소 15분 보장
+          const maxTime = resizeStartTime + (12 * 60) // 최대 12시간
+          const clampedTime = Math.max(minTime, Math.min(maxTime, newTime))
+          setResizeEndTime(clampedTime)
+        }
+        
+        setDragCurrent(position)
+      }
+    } else if (draggedSchedule && dragOffset) {
       // 기존 시간표 이동 시 블록 위치 기반 계산
       const position = getTimeAndDayFromBlockPosition(e.clientX, e.clientY, dragOffset)
       // 영역 밖에서도 항상 위치 업데이트
@@ -534,13 +640,23 @@ export default function CalendarView({
         setDragCurrent(position)
       }
     }
-  }, [isDragging, draggedSchedule, dragOffset, getTimeAndDayFromBlockPosition, getTimeAndDayFromPosition])
+  }, [isDragging, draggedSchedule, dragOffset, isResizing, originalSchedule, resizeMode, resizeStartTime, resizeEndTime, getTimeAndDayFromBlockPosition, getTimeAndDayFromPosition])
 
   // 드래그 끝
   const handleMouseUp = useCallback(() => {
     if (!isDragging) return
 
-    if (draggedSchedule && dragCurrent) {
+    if (isResizing && originalSchedule) {
+      // 리사이즈 모드: 시작/종료 시간 업데이트
+      const startTime = minutesToTime(resizeStartTime)
+      const endTime = minutesToTime(resizeEndTime)
+
+      onScheduleUpdate?.(originalSchedule.id, {
+        dayOfWeek: originalSchedule.dayOfWeek, // 요일은 변경하지 않음
+        startTime: new Date(`1970-01-01T${startTime}:00`),
+        endTime: new Date(`1970-01-01T${endTime}:00`)
+      })
+    } else if (draggedSchedule && dragCurrent) {
       // 기존 시간표 이동
       const startTime = minutesToTime(dragCurrent.time)
       const originalStart = timeToMinutes(draggedSchedule.startTime)
@@ -580,7 +696,10 @@ export default function CalendarView({
     setDraggedSchedule(null)
     setDragOffset(null)
     setMousePosition(null)
-  }, [isDragging, dragStart, dragCurrent, draggedSchedule, onScheduleCreate, onScheduleUpdate])
+    setIsResizing(false)
+    setResizeMode(null)
+    setOriginalSchedule(null)
+  }, [isDragging, dragStart, dragCurrent, draggedSchedule, isResizing, originalSchedule, resizeStartTime, resizeEndTime, onScheduleCreate, onScheduleUpdate])
 
   // 시간표를 렌더링하는 함수
   const renderSchedule = (schedule: any, dayIndex: number) => {
@@ -588,12 +707,14 @@ export default function CalendarView({
       return null
     }
     
-    const startMinutes = timeToMinutes(schedule.startTime)
-    const endMinutes = timeToMinutes(schedule.endTime)
-    const duration = endMinutes - startMinutes
+    // 리사이즈 중인 스케줄인지 확인하고 실시간 시간 적용
+    const isCurrentlyResizing = isResizing && originalSchedule?.id === schedule.id
+    const currentStartMinutes = isCurrentlyResizing ? resizeStartTime : timeToMinutes(schedule.startTime)
+    const currentEndMinutes = isCurrentlyResizing ? resizeEndTime : timeToMinutes(schedule.endTime)
+    const duration = currentEndMinutes - currentStartMinutes
     
     // 9시부터의 상대적 위치 계산
-    const relativeStart = startMinutes - 9 * 60
+    const relativeStart = currentStartMinutes - 9 * 60
     const slotHeight = 20 // 15분당 높이
     const top = (relativeStart / 15) * slotHeight
     const height = (duration / 15) * slotHeight
@@ -617,23 +738,30 @@ export default function CalendarView({
     return (
       <div
         key={schedule.id}
-        className={`absolute left-1 right-1 rounded transition-colors z-10 ${
+        className={`absolute left-1 right-1 rounded transition-all duration-75 z-10 ${
           isReadOnly ? 'cursor-pointer' : 'cursor-move'
-        }`}
+        } ${isCurrentlyResizing ? 'shadow-lg ring-2 ring-blue-400 ring-opacity-50' : ''}`}
         style={{
           top: `${top}px`,
           height: `${Math.max(height, 50)}px`,
           padding: '9px',
-          backgroundColor: scheduleColor,
-          borderColor: scheduleColor,
-          borderWidth: '1px',
+          backgroundColor: isCurrentlyResizing ? '#3B82F6' : scheduleColor,
+          borderColor: isCurrentlyResizing ? '#1D4ED8' : scheduleColor,
+          borderWidth: isCurrentlyResizing ? '2px' : '1px',
           borderStyle: 'solid',
-          opacity: 0.9
+          opacity: isCurrentlyResizing ? 0.95 : 0.9
         }}
         onMouseDown={(e) => handleScheduleMouseDown(e, schedule)}
         onMouseUp={(e) => handleScheduleMouseUp(e, schedule)}
         onClick={() => onScheduleClick?.(schedule)}
       >
+        {/* 리사이즈 핸들 표시 */}
+        {!isReadOnly && (
+          <>
+            <div className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 hover:opacity-30 bg-white transition-opacity" />
+            <div className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 hover:opacity-30 bg-white transition-opacity" />
+          </>
+        )}
         {isShortClass ? (
           // 45분 이내 짧은 수업: 수업명과 강사명만 한 줄로 표시
           <>
@@ -641,7 +769,10 @@ export default function CalendarView({
               {schedule.title} - {schedule.instructor ? schedule.instructor.name : '강사 미정'}
             </div>
             <div className={`text-xs ${textColor}`}>
-              {schedule.startTime} - {schedule.endTime}
+              {isCurrentlyResizing 
+                ? `${minutesToTime(currentStartMinutes)} - ${minutesToTime(currentEndMinutes)}`
+                : `${schedule.startTime} - ${schedule.endTime}`
+              }
             </div>
           </>
         ) : (
@@ -649,7 +780,10 @@ export default function CalendarView({
           <>
             {/* 첫 번째 줄: 시간 */}
             <div className={`text-xs mb-1 ${textColor}`}>
-              {schedule.startTime} - {schedule.endTime}
+              {isCurrentlyResizing 
+                ? `${minutesToTime(currentStartMinutes)} - ${minutesToTime(currentEndMinutes)}`
+                : `${schedule.startTime} - ${schedule.endTime}`
+              }
             </div>
             
             {/* 두 번째 줄: 강좌명 (굵게) */}
