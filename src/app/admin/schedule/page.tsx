@@ -3,14 +3,29 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import ScheduleForm from '@/components/schedule/ScheduleForm'
-import CalendarView from '@/components/schedule/CalendarView'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { DayOfWeek } from '@/types'
-import ScheduleDetailModal from '@/components/schedule/ScheduleDetailModal'
+
+// 큰 컴포넌트들을 dynamic import로 로드
+const ScheduleForm = dynamic(() => import('@/components/schedule/ScheduleForm'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
+
+const CalendarView = dynamic(() => import('@/components/schedule/CalendarView'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
+
+const ScheduleDetailModal = dynamic(() => import('@/components/schedule/ScheduleDetailModal'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
 
 interface FilterState {
   dayOfWeek?: string
@@ -34,6 +49,9 @@ interface FilterOptions {
 }
 
 export default function AdminSchedulePage() {
+  // 컴포넌트 마운트 상태
+  const [isMounted, setIsMounted] = useState(false)
+  
   // 뷰 모드 상태 - 캘린더 뷰 고정
   const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'day'>('week')
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
@@ -63,6 +81,7 @@ export default function AdminSchedulePage() {
   // 데이터 관련 상태
   const [academyId] = useState('demo-academy') // 데모용 학원 ID (향후 인증 시스템 연동 필요)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [scrollPosition, setScrollPosition] = useState(0)
 
   // 알림 관련 상태
   const [notification, setNotification] = useState<{
@@ -103,6 +122,23 @@ export default function AdminSchedulePage() {
 
     loadFilterOptions()
   }, [])
+
+  // 컴포넌트 마운트 체크
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // 스크롤 위치 복원 (refreshKey 변경 시)
+  useEffect(() => {
+    if (scrollPosition > 0) {
+      const timer = setTimeout(() => {
+        window.scrollTo(0, scrollPosition)
+        setScrollPosition(0)
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [refreshKey, scrollPosition])
 
   // 필터 변경 핸들러
   const handleFilterChange = (field: keyof FilterState, value: string) => {
@@ -185,6 +221,9 @@ export default function AdminSchedulePage() {
       return
     }
 
+    // 현재 스크롤 위치 저장
+    setScrollPosition(window.scrollY)
+
     try {
       const response = await fetch(`/api/schedules/${scheduleId}`, {
         method: 'DELETE'
@@ -210,6 +249,18 @@ export default function AdminSchedulePage() {
       console.error('삭제 오류:', error)
       showNotification('error', '네트워크 오류가 발생했습니다.')
     }
+  }
+
+  // 컴포넌트가 마운트되기 전에는 로딩 표시
+  if (!isMounted) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">페이지를 불러오는 중...</p>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -507,63 +558,69 @@ export default function AdminSchedulePage() {
 
           {/* 시간표 뷰 */}
           <section aria-label="캘린더 뷰">
-            <CalendarView
-              academyId={academyId}
-              viewMode={calendarViewMode}
-              selectedDay={selectedDay}
-              filters={{
-                dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
-                instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
-                classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
-                subjectIds: filters.subjectId ? [filters.subjectId] : undefined
-              }}
-              refreshKey={refreshKey}
-              onScheduleClick={(schedule) => {
-                // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
-                console.log('Schedule clicked:', schedule)
-              }}
-              onScheduleEdit={handleEditSchedule}
-              onScheduleCreate={(data) => handleAddSchedule(data)}
-              onScheduleUpdate={async (scheduleId, data) => {
-                try {
-                  // 현재 스크롤 위치 저장
-                  const currentScrollY = window.scrollY
-                  
-                  // startTime과 endTime이 Date 객체인 경우 문자열로 변환
-                  const updateData = {
-                    ...data,
-                    startTime: data.startTime instanceof Date 
-                      ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
-                      : data.startTime,
-                    endTime: data.endTime instanceof Date 
-                      ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
-                      : data.endTime
-                  }
-                  
-                  const response = await fetch(`/api/schedules/${scheduleId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updateData)
-                  })
-                  const result = await response.json()
-                  if (result.success) {
-                    setRefreshKey(prev => prev + 1)
-                    showNotification('success', '시간표가 수정되었습니다.')
+            <ErrorBoundary>
+              <Suspense fallback={
+                <div className="h-96 flex items-center justify-center bg-white rounded-lg border">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-500">시간표를 불러오는 중...</p>
+                  </div>
+                </div>
+              }>
+                <CalendarView
+                academyId={academyId}
+                viewMode={calendarViewMode}
+                selectedDay={selectedDay}
+                filters={{
+                  dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                  instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                  classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                  subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+                }}
+                refreshKey={refreshKey}
+                onScheduleClick={(schedule) => {
+                  // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
+                  console.log('Schedule clicked:', schedule)
+                }}
+                onScheduleEdit={handleEditSchedule}
+                onScheduleCreate={(data) => handleAddSchedule(data)}
+                onScheduleUpdate={async (scheduleId, data) => {
+                  try {
+                    // 현재 스크롤 위치 저장
+                    setScrollPosition(window.scrollY)
                     
-                    // 스크롤 위치 복원 (약간의 딜레이 후)
-                    setTimeout(() => {
-                      window.scrollTo(0, currentScrollY)
-                    }, 100)
-                  } else {
-                    showNotification('error', result.message || '수정에 실패했습니다.')
+                    // startTime과 endTime이 Date 객체인 경우 문자열로 변환
+                    const updateData = {
+                      ...data,
+                      startTime: data.startTime instanceof Date 
+                        ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
+                        : data.startTime,
+                      endTime: data.endTime instanceof Date 
+                        ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
+                        : data.endTime
+                    }
+                    
+                    const response = await fetch(`/api/schedules/${scheduleId}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updateData)
+                    })
+                    const result = await response.json()
+                    if (result.success) {
+                      setRefreshKey(prev => prev + 1)
+                      showNotification('success', '시간표가 수정되었습니다.')
+                    } else {
+                      showNotification('error', result.message || '수정에 실패했습니다.')
+                    }
+                  } catch (error) {
+                    showNotification('error', '네트워크 오류가 발생했습니다.')
                   }
-                } catch (error) {
-                  showNotification('error', '네트워크 오류가 발생했습니다.')
-                }
-              }}
-              onScheduleDelete={handleDeleteSchedule}
-              isReadOnly={false}
-            />
+                }}
+                onScheduleDelete={handleDeleteSchedule}
+                isReadOnly={false}
+                />
+              </Suspense>
+            </ErrorBoundary>
           </section>
         </div>
       </div>
@@ -608,14 +665,23 @@ export default function AdminSchedulePage() {
                   </svg>
                 </button>
               </div>
-              <ScheduleForm
-                academyId={academyId}
-                schedule={formState.selectedSchedule}
-                onSuccess={(message, formData) => handleFormSuccess(message, formData)}
-                onCancel={handleCloseForm}
-                onError={(message) => showNotification('error', message)}
-                onDelete={handleDeleteSchedule}
-              />
+              <Suspense fallback={
+                <div className="h-96 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-500">폼을 불러오는 중...</p>
+                  </div>
+                </div>
+              }>
+                <ScheduleForm
+                  academyId={academyId}
+                  schedule={formState.selectedSchedule}
+                  onSuccess={(message, formData) => handleFormSuccess(message, formData)}
+                  onCancel={handleCloseForm}
+                  onError={(message) => showNotification('error', message)}
+                  onDelete={handleDeleteSchedule}
+                />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -623,10 +689,12 @@ export default function AdminSchedulePage() {
 
       {/* 시간표 상세 모달 */}
       {formState.selectedSchedule && !formState.isOpen && (
-        <ScheduleDetailModal
-          schedule={formState.selectedSchedule}
-          onClose={handleCloseForm}
-        />
+        <Suspense fallback={<div></div>}>
+          <ScheduleDetailModal
+            schedule={formState.selectedSchedule}
+            onClose={handleCloseForm}
+          />
+        </Suspense>
       )}
     </main>
   )

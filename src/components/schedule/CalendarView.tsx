@@ -107,6 +107,15 @@ export default function CalendarView({
   const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null)
   const [isLongPress, setIsLongPress] = useState(false)
   const [pressStartTime, setPressStartTime] = useState<number>(0)
+  const [isRightClicked, setIsRightClicked] = useState(false)
+
+  // 컨텍스트 메뉴 관련 상태
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    schedule: any | null
+  }>({ visible: false, x: 0, y: 0, schedule: null })
   
   // 리사이즈 관련 상태
   const [isResizing, setIsResizing] = useState(false)
@@ -549,10 +558,13 @@ export default function CalendarView({
     
     const pressDuration = Date.now() - pressStartTime
     
-    // 0.5초 미만의 짧은 클릭 → 수정 모드
-    if (pressDuration < 500 && !isLongPress) {
+    // 0.5초 미만의 짧은 클릭 → 수정 모드 (단, 우클릭이 아닌 경우만)
+    if (pressDuration < 500 && !isLongPress && !isRightClicked) {
       onScheduleEdit?.(schedule)
     }
+    
+    // 우클릭 상태 초기화
+    setIsRightClicked(false)
     
     // 드래그 종료 처리 (장시간 클릭이었던 경우)
     if (isLongPress && isDragging) {
@@ -568,6 +580,52 @@ export default function CalendarView({
     setIsLongPress(false)
     setPressStartTime(0)
   }, [isReadOnly, pressTimer, pressStartTime, isLongPress, isDragging, isResizing, onScheduleEdit])
+
+  // 우클릭 핸들러 (수정/삭제만)
+  const handleScheduleContextMenu = useCallback((e: React.MouseEvent, schedule: any) => {
+    if (isReadOnly) return // 읽기 전용 모드에서는 컨텍스트 메뉴 비활성화
+    
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // 우클릭 상태 표시
+    setIsRightClicked(true)
+    
+    // 기존 타이머 정리 (우클릭 시 드래그 방지)
+    if (pressTimer) {
+      clearTimeout(pressTimer)
+      setPressTimer(null)
+    }
+    
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      schedule
+    })
+  }, [pressTimer, isReadOnly])
+
+  // 컨텍스트 메뉴 닫기
+  React.useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu.visible) {
+        setContextMenu({ visible: false, x: 0, y: 0, schedule: null })
+      }
+    }
+
+    const handleScroll = () => {
+      if (contextMenu.visible) {
+        setContextMenu({ visible: false, x: 0, y: 0, schedule: null })
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    document.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [contextMenu.visible])
 
 
   // 기존 handleMouseDown 함수 (빈 영역 클릭용)
@@ -753,6 +811,7 @@ export default function CalendarView({
         }}
         onMouseDown={(e) => handleScheduleMouseDown(e, schedule)}
         onMouseUp={(e) => handleScheduleMouseUp(e, schedule)}
+        onContextMenu={(e) => handleScheduleContextMenu(e, schedule)}
         onClick={() => onScheduleClick?.(schedule)}
       >
         {/* 리사이즈 핸들 표시 */}
@@ -1156,6 +1215,37 @@ export default function CalendarView({
 
       {/* 마우스 커서를 따라다니는 드래그 프리뷰 (전역 위치) */}
       {renderMouseFollowPreview()}
+
+      {/* 컨텍스트 메뉴 */}
+      {contextMenu.visible && contextMenu.schedule && (
+        <div
+          className="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            onClick={() => {
+              setContextMenu({ visible: false, x: 0, y: 0, schedule: null })
+              onScheduleEdit?.(contextMenu.schedule)
+            }}
+          >
+            ✏️ 수정
+          </button>
+          <button
+            className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+            onClick={() => {
+              setContextMenu({ visible: false, x: 0, y: 0, schedule: null })
+              onScheduleDelete?.(contextMenu.schedule.id)
+            }}
+          >
+            🗑️ 삭제
+          </button>
+        </div>
+      )}
     </div>
   )
 } 
