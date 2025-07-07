@@ -71,6 +71,46 @@ const snapToGrid = (minutes: number): number => {
   return Math.round(minutes / 15) * 15
 }
 
+// 두 시간 구간이 겹치는지 확인하는 함수
+const isTimeOverlapping = (start1: number, end1: number, start2: number, end2: number): boolean => {
+  return start1 < end2 && start2 < end1
+}
+
+// 겹치는 스케줄들을 그룹화하는 함수
+const groupOverlappingSchedules = (schedules: any[]): any[][] => {
+  if (schedules.length <= 1) return schedules.map(s => [s])
+  
+  const groups: any[][] = []
+  const processed = new Set<string>()
+  
+  schedules.forEach(schedule => {
+    if (processed.has(schedule.id)) return
+    
+    const startTime = timeToMinutes(schedule.startTime)
+    const endTime = timeToMinutes(schedule.endTime)
+    
+    // 현재 스케줄과 겹치는 모든 스케줄 찾기
+    const overlappingGroup = [schedule]
+    processed.add(schedule.id)
+    
+    schedules.forEach(otherSchedule => {
+      if (processed.has(otherSchedule.id)) return
+      
+      const otherStartTime = timeToMinutes(otherSchedule.startTime)
+      const otherEndTime = timeToMinutes(otherSchedule.endTime)
+      
+      if (isTimeOverlapping(startTime, endTime, otherStartTime, otherEndTime)) {
+        overlappingGroup.push(otherSchedule)
+        processed.add(otherSchedule.id)
+      }
+    })
+    
+    groups.push(overlappingGroup)
+  })
+  
+  return groups
+}
+
 export default function CalendarView({ 
   academyId, 
   viewMode: initialViewMode = 'week', 
@@ -759,8 +799,69 @@ export default function CalendarView({
     setOriginalSchedule(null)
   }, [isDragging, dragStart, dragCurrent, draggedSchedule, isResizing, originalSchedule, resizeStartTime, resizeEndTime, onScheduleCreate, onScheduleUpdate])
 
-  // 시간표를 렌더링하는 함수
-  const renderSchedule = (schedule: any, dayIndex: number) => {
+  // 겹치는 스케줄들을 렌더링하는 함수
+  const renderOverlappingSchedules = (scheduleGroup: any[], dayIndex: number) => {
+    if (scheduleGroup.length === 0) return null
+    
+    // 겹치는 스케줄들을 시작 시간 순으로 정렬
+    const sortedSchedules = [...scheduleGroup].sort((a, b) => 
+      timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+    )
+    
+    // 전체 그룹의 시간 범위 계산
+    const groupStartTime = Math.min(...sortedSchedules.map(s => timeToMinutes(s.startTime)))
+    const groupEndTime = Math.max(...sortedSchedules.map(s => timeToMinutes(s.endTime)))
+    const groupDuration = groupEndTime - groupStartTime
+    
+    // 9시부터의 상대적 위치 계산
+    const relativeStart = groupStartTime - 9 * 60
+    const slotHeight = 20 // 15분당 높이
+    const top = (relativeStart / 15) * slotHeight
+    const height = (groupDuration / 15) * slotHeight
+    
+    // 겹치는 스케줄이 1개인 경우 기존 방식으로 렌더링
+    if (sortedSchedules.length === 1) {
+      return renderSingleSchedule(sortedSchedules[0], dayIndex, 0, 1)
+    }
+    
+    // 겹치는 스케줄이 여러 개인 경우
+    const maxVisibleSchedules = 3 // 최대 3개까지 표시
+    const visibleSchedules = sortedSchedules.slice(0, maxVisibleSchedules)
+    const hiddenCount = sortedSchedules.length - maxVisibleSchedules
+    
+    return (
+      <div
+        key={`group-${sortedSchedules.map(s => s.id).join('-')}`}
+        className="absolute"
+        style={{
+          top: `${top}px`,
+          height: `${Math.max(height, 50)}px`,
+          left: '2px',
+          right: '2px',
+        }}
+      >
+        {visibleSchedules.map((schedule, index) => 
+          renderSingleSchedule(schedule, dayIndex, index, visibleSchedules.length, hiddenCount)
+        )}
+        
+        {/* "외 N건" 표시 */}
+        {hiddenCount > 0 && (
+          <div
+            className="absolute bottom-0 right-0 bg-gray-500 text-white text-xs px-2 py-1 rounded-full opacity-80 hover:opacity-100 cursor-pointer z-20"
+            onClick={() => {
+              // 숨겨진 스케줄들을 표시하는 모달이나 툴팁 표시
+              console.log('Show hidden schedules:', sortedSchedules.slice(maxVisibleSchedules))
+            }}
+          >
+            외 {hiddenCount}건
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // 단일 스케줄을 렌더링하는 함수 (겹침 처리 포함)
+  const renderSingleSchedule = (schedule: any, dayIndex: number, overlapIndex: number = 0, totalOverlaps: number = 1, hiddenCount: number = 0) => {
     if (!schedule || !schedule.startTime || !schedule.endTime) {
       return null
     }
@@ -777,6 +878,10 @@ export default function CalendarView({
     const top = (relativeStart / 15) * slotHeight
     const height = (duration / 15) * slotHeight
 
+    // 겹침 처리를 위한 너비 및 위치 계산
+    const overlapWidth = totalOverlaps > 1 ? `${100 / totalOverlaps}%` : '100%'
+    const overlapLeft = totalOverlaps > 1 ? `${(overlapIndex * 100) / totalOverlaps}%` : '0%'
+    
     // 색상 처리 (기본값: 파란색)
     const scheduleColor = schedule.color || '#3B82F6'
     const isLightColor = (color: string) => {
@@ -796,43 +901,52 @@ export default function CalendarView({
     return (
       <div
         key={schedule.id}
-        className={`absolute left-1 right-1 rounded transition-all duration-75 z-10 ${
+        className={`absolute rounded transition-all duration-75 ${
+          totalOverlaps > 1 ? 'z-10' : 'z-10'
+        } ${
           isReadOnly ? 'cursor-pointer' : 'cursor-move'
-        } ${isCurrentlyResizing ? 'shadow-lg ring-2 ring-blue-400 ring-opacity-50' : ''}`}
+        } ${isCurrentlyResizing ? 'shadow-lg ring-2 ring-blue-400 ring-opacity-50' : ''} ${
+          totalOverlaps > 1 ? 'hover:z-20 hover:shadow-lg' : ''
+        }`}
         style={{
-          top: `${top}px`,
-          height: `${Math.max(height, 50)}px`,
-          padding: '9px',
+          top: totalOverlaps > 1 ? '0px' : `${top}px`,
+          height: totalOverlaps > 1 ? '100%' : `${Math.max(height, 50)}px`,
+          left: overlapLeft,
+          width: overlapWidth,
+          padding: totalOverlaps > 1 ? '6px' : '9px',
           backgroundColor: isCurrentlyResizing ? '#3B82F6' : scheduleColor,
           borderColor: isCurrentlyResizing ? '#1D4ED8' : scheduleColor,
           borderWidth: isCurrentlyResizing ? '2px' : '1px',
           borderStyle: 'solid',
-          opacity: isCurrentlyResizing ? 0.95 : 0.9
+          opacity: isCurrentlyResizing ? 0.95 : 0.9,
+          marginRight: totalOverlaps > 1 ? '1px' : '0px'
         }}
         onMouseDown={(e) => handleScheduleMouseDown(e, schedule)}
         onMouseUp={(e) => handleScheduleMouseUp(e, schedule)}
         onContextMenu={(e) => handleScheduleContextMenu(e, schedule)}
         onClick={() => onScheduleClick?.(schedule)}
       >
-        {/* 리사이즈 핸들 표시 */}
-        {!isReadOnly && (
+        {/* 리사이즈 핸들 표시 (겹치지 않는 경우에만) */}
+        {!isReadOnly && totalOverlaps === 1 && (
           <>
             <div className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 hover:opacity-30 bg-white transition-opacity" />
             <div className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 hover:opacity-30 bg-white transition-opacity" />
           </>
         )}
-        {isShortClass ? (
-          // 45분 이내 짧은 수업: 수업명과 강사명만 한 줄로 표시
+        {isShortClass || totalOverlaps > 1 ? (
+          // 45분 이내 짧은 수업 또는 겹치는 수업: 수업명과 강사명만 한 줄로 표시
           <>
             <div className={`font-bold text-xs truncate mb-1 ${textColor}`}>
-              {schedule.title} - {schedule.instructor ? schedule.instructor.name : '강사 미정'}
+              {schedule.title}
             </div>
-            <div className={`text-xs ${textColor}`}>
-              {isCurrentlyResizing 
-                ? `${minutesToTime(currentStartMinutes)} - ${minutesToTime(currentEndMinutes)}`
-                : `${schedule.startTime} - ${schedule.endTime}`
-              }
-            </div>
+            {totalOverlaps === 1 && (
+              <div className={`text-xs ${textColor}`}>
+                {isCurrentlyResizing 
+                  ? `${minutesToTime(currentStartMinutes)} - ${minutesToTime(currentEndMinutes)}`
+                  : `${schedule.startTime} - ${schedule.endTime}`
+                }
+              </div>
+            )}
           </>
         ) : (
           // 45분 초과 수업: 기존 3줄 레이아웃 유지
@@ -1201,8 +1315,13 @@ export default function CalendarView({
                     )
                   })}
 
-                  {/* 시간표들 */}
-                  {daySchedules.map((schedule: Schedule) => renderSchedule(schedule, dayIndex))}
+                  {/* 시간표들 - 겹침 처리 */}
+                  {(() => {
+                    const scheduleGroups = groupOverlappingSchedules(daySchedules)
+                    return scheduleGroups.map((group, groupIndex) => 
+                      renderOverlappingSchedules(group, dayIndex)
+                    )
+                  })()}
 
                   {/* 드래그 프리뷰 (해당 요일에만) */}
                   {!isReadOnly && isDragging && dragCurrent && dragCurrent.day === actualDayIndex && renderDragPreview()}
