@@ -157,6 +157,9 @@ export default function CalendarView({
     schedule: any | null
   }>({ visible: false, x: 0, y: 0, schedule: null })
   
+  // 숨겨진 스케줄 표시 상태
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  
   // 리사이즈 관련 상태
   const [isResizing, setIsResizing] = useState(false)
   const [resizeMode, setResizeMode] = useState<'top' | 'bottom' | null>(null)
@@ -808,52 +811,60 @@ export default function CalendarView({
       timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
     )
     
-    // 전체 그룹의 시간 범위 계산
-    const groupStartTime = Math.min(...sortedSchedules.map(s => timeToMinutes(s.startTime)))
-    const groupEndTime = Math.max(...sortedSchedules.map(s => timeToMinutes(s.endTime)))
-    const groupDuration = groupEndTime - groupStartTime
-    
-    // 9시부터의 상대적 위치 계산
-    const relativeStart = groupStartTime - 9 * 60
-    const slotHeight = 20 // 15분당 높이
-    const top = (relativeStart / 15) * slotHeight
-    const height = (groupDuration / 15) * slotHeight
-    
     // 겹치는 스케줄이 1개인 경우 기존 방식으로 렌더링
     if (sortedSchedules.length === 1) {
       return renderSingleSchedule(sortedSchedules[0], dayIndex, 0, 1)
     }
     
+    // 그룹 ID 생성
+    const groupId = `group-${sortedSchedules.map(s => s.id).join('-')}`
+    const isExpanded = expandedGroups.has(groupId)
+    
     // 겹치는 스케줄이 여러 개인 경우
-    const maxVisibleSchedules = 3 // 최대 3개까지 표시
+    const maxVisibleSchedules = isExpanded ? sortedSchedules.length : 3 // 확장된 경우 모두 표시
     const visibleSchedules = sortedSchedules.slice(0, maxVisibleSchedules)
     const hiddenCount = sortedSchedules.length - maxVisibleSchedules
     
+    // 표시되는 스케줄들의 최대 종료 시간 계산 (버튼 위치 결정용)
+    const maxEndTime = Math.max(...visibleSchedules.map(s => timeToMinutes(s.endTime)))
+    const relativeEnd = maxEndTime - 9 * 60
+    const slotHeight = 20
+    const buttonTop = (relativeEnd / 15) * slotHeight
+    
     return (
       <div
-        key={`group-${sortedSchedules.map(s => s.id).join('-')}`}
+        key={groupId}
         className="absolute"
         style={{
-          top: `${top}px`,
-          height: `${Math.max(height, 50)}px`,
           left: '2px',
           right: '2px',
+          top: '0px',
+          height: '100%'
         }}
       >
         {visibleSchedules.map((schedule, index) => 
-          renderSingleSchedule(schedule, dayIndex, index, visibleSchedules.length, hiddenCount)
+          renderSingleSchedule(schedule, dayIndex, index, visibleSchedules.length, hiddenCount, groupId)
         )}
         
-        {/* "외 N건" 표시 */}
+        {/* "외 N건" 표시 - 스케줄 끝나는 지점 근처에 배치 */}
         {hiddenCount > 0 && (
           <div
-            className="absolute bottom-0 right-0 bg-gray-500 text-white text-xs px-2 py-1 rounded-full opacity-80 hover:opacity-100 cursor-pointer z-20"
+            className="absolute bg-gray-500 text-white text-xs px-2 py-1 rounded-full opacity-80 hover:opacity-100 cursor-pointer z-20 shadow-sm"
+            style={{
+              top: `${Math.max(buttonTop - 25, 5)}px`, // 스케줄 끝에서 약간 위쪽, 최소 5px 여백
+              right: '5px', // 오른쪽에서 5px 여백
+            }}
             onClick={() => {
-              // 숨겨진 스케줄들을 표시하는 모달이나 툴팁 표시
-              console.log('Show hidden schedules:', sortedSchedules.slice(maxVisibleSchedules))
+              const newExpandedGroups = new Set(expandedGroups)
+              if (isExpanded) {
+                newExpandedGroups.delete(groupId)
+              } else {
+                newExpandedGroups.add(groupId)
+              }
+              setExpandedGroups(newExpandedGroups)
             }}
           >
-            외 {hiddenCount}건
+            {isExpanded ? '접기' : `외 ${hiddenCount}건`}
           </div>
         )}
       </div>
@@ -861,7 +872,7 @@ export default function CalendarView({
   }
 
   // 단일 스케줄을 렌더링하는 함수 (겹침 처리 포함)
-  const renderSingleSchedule = (schedule: any, dayIndex: number, overlapIndex: number = 0, totalOverlaps: number = 1, hiddenCount: number = 0) => {
+  const renderSingleSchedule = (schedule: any, dayIndex: number, overlapIndex: number = 0, totalOverlaps: number = 1, hiddenCount: number = 0, groupId: string = '') => {
     if (!schedule || !schedule.startTime || !schedule.endTime) {
       return null
     }
@@ -909,8 +920,9 @@ export default function CalendarView({
           totalOverlaps > 1 ? 'hover:z-20 hover:shadow-lg' : ''
         }`}
         style={{
-          top: totalOverlaps > 1 ? '0px' : `${top}px`,
-          height: totalOverlaps > 1 ? '100%' : `${Math.max(height, 50)}px`,
+          // 겹치는 경우에도 개별 스케줄의 고유한 위치와 높이 유지
+          top: totalOverlaps > 1 ? `${top}px` : `${top}px`,
+          height: totalOverlaps > 1 ? `${Math.max(height, 50)}px` : `${Math.max(height, 50)}px`,
           left: overlapLeft,
           width: overlapWidth,
           padding: totalOverlaps > 1 ? '6px' : '9px',
@@ -934,19 +946,17 @@ export default function CalendarView({
           </>
         )}
         {isShortClass || totalOverlaps > 1 ? (
-          // 45분 이내 짧은 수업 또는 겹치는 수업: 수업명과 강사명만 한 줄로 표시
+          // 45분 이내 짧은 수업 또는 겹치는 수업: 수업명과 시간 표시
           <>
             <div className={`font-bold text-xs truncate mb-1 ${textColor}`}>
               {schedule.title}
             </div>
-            {totalOverlaps === 1 && (
-              <div className={`text-xs ${textColor}`}>
-                {isCurrentlyResizing 
-                  ? `${minutesToTime(currentStartMinutes)} - ${minutesToTime(currentEndMinutes)}`
-                  : `${schedule.startTime} - ${schedule.endTime}`
-                }
-              </div>
-            )}
+            <div className={`text-xs ${textColor}`}>
+              {isCurrentlyResizing 
+                ? `${minutesToTime(currentStartMinutes)} - ${minutesToTime(currentEndMinutes)}`
+                : `${schedule.startTime} - ${schedule.endTime}`
+              }
+            </div>
           </>
         ) : (
           // 45분 초과 수업: 기존 3줄 레이아웃 유지
