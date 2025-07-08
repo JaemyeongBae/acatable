@@ -486,12 +486,12 @@ export default function ScheduleGrid({
                             {schedule.classroom?.name || '강의실 미정'}
                           </span>
                           {schedule.subject && (
-                            <span 
-                              className="bg-blue-100 text-blue-800 px-2 py-1 rounded"
-                              aria-label={`과목: ${schedule.subject.name}`}
-                            >
-                              {schedule.subject.name}
-                            </span>
+                          <span 
+                            className="bg-blue-100 text-blue-800 px-2 py-1 rounded"
+                            aria-label={`과목: ${schedule.subject.name}`}
+                          >
+                            {schedule.subject.name}
+                          </span>
                           )}
                         </div>
                       </div>

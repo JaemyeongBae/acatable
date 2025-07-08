@@ -1,0 +1,53 @@
+# Supabase 프로젝트 설정 파일
+# 로컬 개발 환경 및 배포 설정
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+port = 54324
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000"]
+jwt_expiry = 3600
+refresh_token_rotation_enabled = true
+security_captcha_enabled = false
+security_captcha_secret = ""
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbound_ip_filter]
+enabled = false
+allowed_cidrs = ["0.0.0.0/0", "::/0"]
+
+[storage]
+enabled = true
+port = 54324
+file_size_limit = "50MB"
+image_transformation = {enabled = true}
+
+[edge_runtime]
+enabled = true
+port = 54325
+
+[analytics]
+enabled = false
+
+[functions]
+verify_jwt = false

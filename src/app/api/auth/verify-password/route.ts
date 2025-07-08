@@ -1,0 +1,94 @@
+// 비밀번호 검증 API
+// 목적: 학원 관리자 비밀번호 검증 (수정 페이지, 마이페이지 접근용)
+
+import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
+
+// 비밀번호 검증 요청 타입
+interface VerifyPasswordRequest {
+  academyCode: string
+  password: string
+}
+
+// 응답 타입
+interface VerifyPasswordResponse {
+  success: boolean
+  message: string
+  data?: {
+    academyId: string
+    academyName: string
+  }
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse<VerifyPasswordResponse>> {
+  try {
+    console.log('비밀번호 검증 API 호출됨')
+    
+    const body: VerifyPasswordRequest = await request.json()
+    const { academyCode, password } = body
+    
+    // 입력 데이터 검증
+    if (!academyCode || !password) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: '학원 코드와 비밀번호를 입력해주세요.'
+        },
+        { status: 400 }
+      )
+    }
+    
+    console.log('검증 요청:', { academyCode, password: '[HIDDEN]' })
+    
+    // Supabase 함수 호출로 인증 처리
+    const { data, error } = await supabase.rpc('authenticate_academy', {
+      p_academy_code: academyCode,
+      p_password: password
+    })
+    
+    console.log('인증 결과:', { data, error })
+    
+    if (error) {
+      console.error('비밀번호 검증 오류:', error)
+      return NextResponse.json(
+        {
+          success: false,
+          message: '인증 중 오류가 발생했습니다.'
+        },
+        { status: 500 }
+      )
+    }
+    
+    // 인증 결과 확인
+    const result = data?.[0]
+    if (!result?.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: result?.message || '비밀번호가 틀렸습니다.'
+        },
+        { status: 401 }
+      )
+    }
+    
+    // 성공 응답
+    return NextResponse.json({
+      success: true,
+      message: '인증이 완료되었습니다.',
+      data: {
+        academyId: result.academy_id,
+        academyName: result.academy_name
+      }
+    })
+    
+  } catch (error) {
+    console.error('비밀번호 검증 처리 오류:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        message: '서버 오류가 발생했습니다.'
+      },
+      { status: 500 }
+    )
+  }
+}

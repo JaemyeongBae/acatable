@@ -1,0 +1,876 @@
+// 시간표 수정 페이지
+// 목적: 비밀번호 인증 후 시간표 관리 기능 제공
+
+'use client'
+
+import { useState, useEffect, Suspense } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import dynamic from 'next/dynamic'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import { DayOfWeek } from '@/types'
+
+// 큰 컴포넌트들을 dynamic import로 로드
+const ScheduleForm = dynamic(() => import('@/components/schedule/ScheduleForm'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
+
+const CalendarView = dynamic(() => import('@/components/schedule/CalendarView'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
+
+const ScheduleDetailModal = dynamic(() => import('@/components/schedule/ScheduleDetailModal'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
+
+interface AcademyInfo {
+  academyId: string
+  academyName: string
+  academyCode: string
+}
+
+interface FilterState {
+  dayOfWeek?: string
+  instructorId?: string
+  classroomId?: string
+  subjectId?: string
+}
+
+interface FormState {
+  isOpen: boolean
+  mode: 'create' | 'edit'
+  selectedSchedule: any | null
+  loading: boolean
+}
+
+// 필터 옵션 인터페이스
+interface FilterOptions {
+  instructors: { id: string; name: string }[]
+  classrooms: { id: string; name: string }[]
+  subjects: { id: string; name: string }[]
+}
+
+// 학원별 시간표 관리 컴포넌트
+function AcademyScheduleManager({ academyCode, academyInfo }: { academyCode: string, academyInfo: AcademyInfo | null }) {
+  // 컴포넌트 마운트 상태
+  const [isMounted, setIsMounted] = useState(false)
+  
+  // 뷰 모드 상태 - 캘린더 뷰 고정
+  const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'day'>('week')
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
+  
+  // 폼 관련 상태
+  const [formState, setFormState] = useState<FormState>({
+    isOpen: false,
+    mode: 'create',
+    selectedSchedule: null,
+    loading: false
+  })
+
+  // 필터 관련 상태
+  const [filters, setFilters] = useState<FilterState>({})
+  const [isFilterApplied, setIsFilterApplied] = useState(false)
+  
+  // 마지막 입력값 저장 (빠른 입력을 위해)
+  const [lastFormData, setLastFormData] = useState<any>(null)
+
+  // 필터 옵션 데이터
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    instructors: [],
+    classrooms: [],
+    subjects: []
+  })
+
+  // 데이터 관련 상태
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [scrollPosition, setScrollPosition] = useState(0)
+
+  // 알림 관련 상태
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'warning'
+    message: string
+    show: boolean
+  }>({
+    type: 'success',
+    message: '',
+    show: false
+  })
+
+  // 필터 옵션 데이터 로딩
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      if (!academyInfo?.academyId) return
+      
+      try {
+        const [subjectsRes, instructorsRes, classroomsRes] = await Promise.all([
+          fetch(`/api/subjects?academyId=${academyInfo.academyId}`),
+          fetch(`/api/instructors?academyId=${academyInfo.academyId}`),
+          fetch(`/api/classrooms?academyId=${academyInfo.academyId}`)
+        ])
+
+        const [subjectsData, instructorsData, classroomsData] = await Promise.all([
+          subjectsRes.json(),
+          instructorsRes.json(),
+          classroomsRes.json()
+        ])
+
+        setFilterOptions({
+          subjects: subjectsData.success ? subjectsData.data || [] : [],
+          instructors: instructorsData.success ? instructorsData.data || [] : [],
+          classrooms: classroomsData.success ? classroomsData.data || [] : []
+        })
+      } catch (error) {
+        console.error('필터 옵션 로딩 실패:', error)
+      }
+    }
+
+    loadFilterOptions()
+  }, [academyInfo?.academyId])
+
+  // 컴포넌트 마운트 체크
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // 스크롤 위치 복원 (refreshKey 변경 시)
+  useEffect(() => {
+    if (scrollPosition > 0) {
+      const timer = setTimeout(() => {
+        window.scrollTo(0, scrollPosition)
+        setScrollPosition(0)
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [refreshKey, scrollPosition])
+
+  // 필터 변경 핸들러
+  const handleFilterChange = (field: keyof FilterState, value: string) => {
+    const newFilters = {
+      ...filters,
+      [field]: value || undefined
+    }
+    setFilters(newFilters)
+    setIsFilterApplied(Object.values(newFilters).some(val => val))
+  }
+
+  // 필터 초기화
+  const handleResetFilters = () => {
+    setFilters({})
+    setIsFilterApplied(false)
+  }
+
+  // 새 시간표 추가
+  const handleAddSchedule = (presetData?: any) => {
+    setFormState({
+      isOpen: true,
+      mode: 'create',
+      selectedSchedule: presetData ? { ...lastFormData, ...presetData } : lastFormData,
+      loading: false
+    })
+  }
+
+  // 시간표 수정
+  const handleEditSchedule = (schedule: any) => {
+    setFormState({
+      isOpen: true,
+      mode: 'edit',
+      selectedSchedule: schedule,
+      loading: false
+    })
+  }
+
+  // 폼 닫기
+  const handleCloseForm = () => {
+    setFormState(prev => ({
+      ...prev,
+      isOpen: false,
+      selectedSchedule: null
+    }))
+  }
+
+  // 폼 성공 처리
+  const handleFormSuccess = (message: string, formData?: any) => {
+    // 마지막 입력값 저장 (다음 입력 시 활용)
+    if (formData && formState.mode === 'create') {
+      setLastFormData({
+        subjectId: formData.subjectId,
+        instructorId: formData.instructorId,
+        classroomId: formData.classroomId,
+        classTypeId: formData.classTypeId,
+        maxStudents: formData.maxStudents
+      })
+    }
+    
+    setFormState(prev => ({
+      ...prev,
+      isOpen: false,
+      selectedSchedule: null
+    }))
+    setRefreshKey(prev => prev + 1) // 시간표 목록 새로고침
+    showNotification('success', message)
+  }
+
+  // 알림 표시
+  const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
+    setNotification({ type, message, show: true })
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }))
+    }, 5000)
+  }
+
+  // 시간표 삭제
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    if (!confirm('정말로 이 시간표를 삭제하시겠습니까?')) {
+      return
+    }
+
+    // 현재 스크롤 위치 저장
+    setScrollPosition(window.scrollY)
+
+    try {
+      const response = await fetch(`/api/schedules/${scheduleId}`, {
+        method: 'DELETE'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setRefreshKey(prev => prev + 1)
+        showNotification('success', '시간표가 삭제되었습니다.')
+        
+        // 삭제 성공 시 폼 모달 닫기
+        setFormState({
+          isOpen: false,
+          mode: 'create',
+          selectedSchedule: null,
+          loading: false
+        })
+      } else {
+        showNotification('error', result.message || '삭제에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('삭제 오류:', error)
+      showNotification('error', '네트워크 오류가 발생했습니다.')
+    }
+  }
+
+  // 컴포넌트가 마운트되기 전에는 로딩 표시
+  if (!isMounted) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">페이지를 불러오는 중...</p>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50">
+      {/* 페이지 헤더 */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <Link href={`/${academyCode}`}>
+                <Button 
+                  variant="outline"
+                  className="text-gray-600 hover:text-gray-900"
+                  aria-label="시간표 조회 페이지로 이동"
+                >
+                  <svg 
+                    className="w-5 h-5 mr-2" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M15 19l-7-7 7-7" 
+                    />
+                  </svg>
+                  시간표 조회
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {academyInfo?.academyName} 시간표 관리
+                </h1>
+                <p className="mt-1 text-sm text-gray-600">
+                  학원 시간표를 등록, 수정, 삭제할 수 있습니다.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link
+                href={`/${academyCode}/mypage`}
+                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+              >
+                마이페이지
+              </Link>
+              <Button
+                onClick={handleAddSchedule}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                aria-label="새 시간표 추가"
+              >
+                <svg 
+                  className="w-5 h-5 mr-2" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6" 
+                  />
+                </svg>
+                시간표 추가
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* 뷰 모드 선택 */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setCalendarViewMode('week')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  calendarViewMode === 'week' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                주간
+              </button>
+              <button
+                onClick={() => setCalendarViewMode('day')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  calendarViewMode === 'day' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                일간
+              </button>
+              {calendarViewMode === 'day' && (
+                <select
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+                  className="ml-2 px-3 py-1 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="MONDAY">월요일</option>
+                  <option value="TUESDAY">화요일</option>
+                  <option value="WEDNESDAY">수요일</option>
+                  <option value="THURSDAY">목요일</option>
+                  <option value="FRIDAY">금요일</option>
+                  <option value="SATURDAY">토요일</option>
+                  <option value="SUNDAY">일요일</option>
+                </select>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 알림 메시지 */}
+      {notification.show && (
+        <div 
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md ${
+            notification.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' :
+            notification.type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' :
+            'bg-yellow-50 border border-yellow-200 text-yellow-800'
+          }`}
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              {notification.type === 'success' && (
+                <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              )}
+              {notification.type === 'error' && (
+                <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              )}
+              {notification.type === 'warning' && (
+                <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              )}
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium">{notification.message}</p>
+            </div>
+            <div className="ml-auto pl-3">
+              <button
+                onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+                className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="알림 닫기"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-8">
+          {/* 필터 섹션 */}
+          <Card>
+            <section className="p-6" aria-label="시간표 필터">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  필터
+                </h2>
+                {isFilterApplied && (
+                  <button
+                    onClick={handleResetFilters}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    필터 초기화
+                  </button>
+                )}
+              </div>
+              <form role="search" aria-label="시간표 필터링">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* 요일 필터 */}
+                  <div>
+                    <label 
+                      htmlFor="day-filter" 
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      요일
+                    </label>
+                    <select 
+                      id="day-filter"
+                      name="dayOfWeek"
+                      value={filters.dayOfWeek || ''}
+                      onChange={(e) => handleFilterChange('dayOfWeek', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      aria-describedby="day-filter-desc"
+                    >
+                      <option value="">전체</option>
+                      <option value="MONDAY">월요일</option>
+                      <option value="TUESDAY">화요일</option>
+                      <option value="WEDNESDAY">수요일</option>
+                      <option value="THURSDAY">목요일</option>
+                      <option value="FRIDAY">금요일</option>
+                      <option value="SATURDAY">토요일</option>
+                      <option value="SUNDAY">일요일</option>
+                    </select>
+                    <div id="day-filter-desc" className="sr-only">
+                      특정 요일의 시간표만 표시
+                    </div>
+                  </div>
+
+                  {/* 강사 필터 */}
+                  <div>
+                    <label 
+                      htmlFor="instructor-filter" 
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      강사
+                    </label>
+                    <select 
+                      id="instructor-filter"
+                      name="instructorId"
+                      value={filters.instructorId || ''}
+                      onChange={(e) => handleFilterChange('instructorId', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      aria-describedby="instructor-filter-desc"
+                    >
+                      <option value="">전체</option>
+                      {filterOptions.instructors.map(instructor => (
+                        <option key={instructor.id} value={instructor.id}>
+                          {instructor.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div id="instructor-filter-desc" className="sr-only">
+                      특정 강사의 시간표만 표시
+                    </div>
+                  </div>
+
+                  {/* 강의실 필터 */}
+                  <div>
+                    <label 
+                      htmlFor="classroom-filter" 
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      강의실
+                    </label>
+                    <select 
+                      id="classroom-filter"
+                      name="classroomId"
+                      value={filters.classroomId || ''}
+                      onChange={(e) => handleFilterChange('classroomId', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      aria-describedby="classroom-filter-desc"
+                    >
+                      <option value="">전체</option>
+                      {filterOptions.classrooms.map(classroom => (
+                        <option key={classroom.id} value={classroom.id}>
+                          {classroom.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div id="classroom-filter-desc" className="sr-only">
+                      특정 강의실의 시간표만 표시
+                    </div>
+                  </div>
+
+                  {/* 과목 필터 */}
+                  <div>
+                    <label 
+                      htmlFor="subject-filter" 
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      과목
+                    </label>
+                    <select 
+                      id="subject-filter"
+                      name="subjectId"
+                      value={filters.subjectId || ''}
+                      onChange={(e) => handleFilterChange('subjectId', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      aria-describedby="subject-filter-desc"
+                    >
+                      <option value="">전체</option>
+                      {filterOptions.subjects.map(subject => (
+                        <option key={subject.id} value={subject.id}>
+                          {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div id="subject-filter-desc" className="sr-only">
+                      특정 과목의 시간표만 표시
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </section>
+          </Card>
+
+          {/* 시간표 뷰 */}
+          <section aria-label="캘린더 뷰">
+            <ErrorBoundary>
+              <Suspense fallback={
+                <div className="h-96 flex items-center justify-center bg-white rounded-lg border">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-500">시간표를 불러오는 중...</p>
+                  </div>
+                </div>
+              }>
+                <CalendarView
+                  academyId={academyInfo?.academyId || ''}
+                  viewMode={calendarViewMode}
+                  selectedDay={selectedDay}
+                  filters={{
+                    dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                    instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                    classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                    subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+                  }}
+                  refreshKey={refreshKey}
+                  onScheduleClick={(schedule) => {
+                    // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
+                    console.log('Schedule clicked:', schedule)
+                  }}
+                  onScheduleEdit={handleEditSchedule}
+                  onScheduleCreate={(data) => handleAddSchedule(data)}
+                  onScheduleUpdate={async (scheduleId, data) => {
+                    try {
+                      // 현재 스크롤 위치 저장
+                      setScrollPosition(window.scrollY)
+                      
+                      // startTime과 endTime이 Date 객체인 경우 문자열로 변환
+                      const updateData = {
+                        ...data,
+                        startTime: data.startTime instanceof Date 
+                          ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
+                          : data.startTime,
+                        endTime: data.endTime instanceof Date 
+                          ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
+                          : data.endTime
+                      }
+                      
+                      const response = await fetch(`/api/schedules/${scheduleId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                      })
+                      const result = await response.json()
+                      if (result.success) {
+                        setRefreshKey(prev => prev + 1)
+                        showNotification('success', '시간표가 수정되었습니다.')
+                      } else {
+                        showNotification('error', result.message || '수정에 실패했습니다.')
+                      }
+                    } catch (error) {
+                      showNotification('error', '네트워크 오류가 발생했습니다.')
+                    }
+                  }}
+                  onScheduleDelete={handleDeleteSchedule}
+                  isReadOnly={false}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          </section>
+        </div>
+      </div>
+
+      {/* 시간표 입력/수정 모달 */}
+      {formState.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseForm()
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="schedule-form-title"
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 id="schedule-form-title" className="text-xl font-semibold text-gray-900">
+                  {formState.mode === 'edit' ? '시간표 수정' : '새 시간표 추가'}
+                </h2>
+                <button
+                  onClick={handleCloseForm}
+                  className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                  aria-label="모달 닫기"
+                >
+                  <svg 
+                    className="w-6 h-6" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M6 18L18 6M6 6l12 12" 
+                    />
+                  </svg>
+                </button>
+              </div>
+              <Suspense fallback={
+                <div className="h-96 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-500">폼을 불러오는 중...</p>
+                  </div>
+                </div>
+              }>
+                <ScheduleForm
+                  academyId={academyInfo?.academyId || ''}
+                  schedule={formState.selectedSchedule}
+                  onSuccess={(message, formData) => handleFormSuccess(message, formData)}
+                  onCancel={handleCloseForm}
+                  onError={(message) => showNotification('error', message)}
+                  onDelete={handleDeleteSchedule}
+                />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 시간표 상세 모달 */}
+      {formState.selectedSchedule && !formState.isOpen && (
+        <Suspense fallback={<div></div>}>
+          <ScheduleDetailModal
+            schedule={formState.selectedSchedule}
+            onClose={handleCloseForm}
+          />
+        </Suspense>
+      )}
+    </main>
+  )
+}
+
+export default function EditPage() {
+  const params = useParams()
+  const router = useRouter()
+  const academyCode = params.academyCode as string
+  
+  // 상태 관리
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [academyInfo, setAcademyInfo] = useState<AcademyInfo | null>(null)
+  const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // 학원 정보 로딩
+  useEffect(() => {
+    const fetchAcademyInfo = async () => {
+      try {
+        const response = await fetch(`/api/academies/${academyCode}`)
+        const data = await response.json()
+        
+        if (data.success) {
+          setAcademyInfo({
+            academyId: data.data.academyId,
+            academyName: data.data.academyName,
+            academyCode: data.data.academyCode
+          })
+        } else {
+          setError('학원 정보를 찾을 수 없습니다.')
+        }
+      } catch (err) {
+        setError('학원 정보를 불러오는 중 오류가 발생했습니다.')
+      }
+    }
+
+    if (academyCode) {
+      fetchAcademyInfo()
+    }
+  }, [academyCode])
+
+  // 비밀번호 검증
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!password.trim()) {
+      setError('비밀번호를 입력해주세요.')
+      return
+    }
+    
+    setIsLoading(true)
+    setError('')
+    
+    try {
+      const response = await fetch('/api/auth/verify-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          academyCode,
+          password: password.trim()
+        }),
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setIsAuthenticated(true)
+        // 추가 학원 정보 업데이트
+        if (data.data) {
+          setAcademyInfo(prev => ({
+            ...prev!,
+            academyId: data.data.academyId,
+            academyName: data.data.academyName
+          }))
+        }
+      } else {
+        setError(data.message || '비밀번호가 틀렸습니다.')
+        setPassword('') // 비밀번호 입력 필드 초기화
+      }
+    } catch (err) {
+      setError('인증 중 오류가 발생했습니다.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 비밀번호 입력 화면
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            {/* 헤더 */}
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">관리자 인증</h1>
+              <p className="text-gray-600">
+                {academyInfo?.academyName || academyCode} 시간표 수정
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                관리자 비밀번호를 입력하세요
+              </p>
+            </div>
+
+            {/* 비밀번호 입력 폼 */}
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-600 text-sm">{error}</p>
+                </div>
+              )}
+              
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  관리자 비밀번호
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="비밀번호 입력 (6자리 이상)"
+                  disabled={isLoading}
+                />
+              </div>
+              
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isLoading ? '인증 중...' : '확인'}
+              </button>
+            </form>
+
+            {/* 돌아가기 링크 */}
+            <div className="mt-6 text-center">
+              <Link 
+                href={`/${academyCode}`}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                ← 시간표 페이지로 돌아가기
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 인증 성공 후 시간표 관리 화면
+  return <AcademyScheduleManager academyCode={academyCode} academyInfo={academyInfo} />
+}

@@ -1,0 +1,12 @@
+
+> acatable@1.4.1 dev
+> next dev
+
+   ▲ Next.js 15.3.4
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.219.185:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+   Using tsconfig file: ./tsconfig.json
+ ✓ Ready in 1130ms

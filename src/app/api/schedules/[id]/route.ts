@@ -1,18 +1,8 @@
 // 개별 시간표 API 엔드포인트 (GET, PUT, DELETE)
 // 목적: 특정 시간표 조회/수정/삭제 with 완화된 충돌 검증
 
-import { NextRequest } from 'next/server'
-import prisma from '@/lib/prisma'
-import { validateSchedule, validateScheduleUpdate, validateData } from '@/lib/validation/schemas'
-import { validateCompleteSchedule } from '@/lib/utils/schedule-conflict'
-import {
-  createSuccessResponse,
-  createErrorResponse,
-  createValidationErrorResponse,
-  createNotFoundResponse,
-  createInternalServerErrorResponse,
-  createMethodNotAllowedResponse
-} from '@/lib/api/response'
+import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
 
 /**
  * 특정 시간표 조회 (GET /api/schedules/[id])
@@ -23,43 +13,34 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params
+    console.log('시간표 상세 조회 요청:', { id })
 
-    const schedule = await prisma.schedule.findUnique({
-      where: { id, isActive: true },
-      include: {
-        academy: { select: { name: true } },
-        subject: { select: { id: true, name: true, color: true } },
-        instructor: {
-          select: { 
-            id: true, 
-            user: { select: { name: true, email: true, phone: true } },
-            specialties: true,
-            bio: true
-          }
-        },
-        classroom: {
-          select: { id: true, name: true, capacity: true, floor: true, location: true }
-        },
-        classType: {
-          select: { id: true, name: true, color: true, description: true }
-        },
-        studentSchedules: {
-          select: { 
-            id: true,
-            user: { 
-              select: { 
-                name: true, 
-                email: true, 
-                phone: true 
-              } 
-            }
-          }
-        }
-      }
-    })
+    const { data: schedule, error } = await supabase
+      .from('schedules')
+      .select(`
+        *,
+        academies:academy_id (name),
+        subjects:subject_id (id, name, color),
+        instructors:instructor_id (
+          id, 
+          specialties,
+          bio,
+          users:user_id (name, email, phone)
+        ),
+        classrooms:classroom_id (id, name, capacity, floor, location),
+        class_types:class_type_id (id, name, color, description)
+      `)
+      .eq('id', id)
+      .eq('is_active', true)
+      .single()
 
-    if (!schedule) {
-      return createNotFoundResponse('시간표')
+    console.log('시간표 상세 조회 결과:', { schedule, error })
+
+    if (error || !schedule) {
+      return NextResponse.json({
+        success: false,
+        message: '시간표를 찾을 수 없습니다.'
+      }, { status: 404 })
     }
 
     // 응답 데이터 변환
@@ -67,40 +48,40 @@ export async function GET(
       id: schedule.id,
       title: schedule.title,
       description: schedule.description,
-      dayOfWeek: schedule.dayOfWeek,
-      startTime: schedule.startTime,
-      endTime: schedule.endTime,
-      maxStudents: schedule.maxStudents,
-      currentStudents: schedule.studentSchedules.length,
-      color: schedule.color || '#BFDBFE', // 색상 필드 추가
-      academy: schedule.academy,
-      subject: schedule.subject,
-      instructor: schedule.instructor ? {
-        id: schedule.instructor.id,
-        name: schedule.instructor.user.name,
-        email: schedule.instructor.user.email,
-        phone: schedule.instructor.user.phone,
-        specialties: schedule.instructor.specialties,
-        bio: schedule.instructor.bio
+      dayOfWeek: schedule.day_of_week,
+      startTime: schedule.start_time,
+      endTime: schedule.end_time,
+      maxStudents: schedule.max_students,
+      currentStudents: schedule.current_students || 0,
+      color: schedule.color,
+      academy: schedule.academies,
+      subject: schedule.subjects,
+      instructor: schedule.instructors ? {
+        id: schedule.instructors.id,
+        name: schedule.instructors.users?.name || '강사 미정',
+        email: schedule.instructors.users?.email || '',
+        phone: schedule.instructors.users?.phone || '',
+        specialties: schedule.instructors.specialties || '',
+        bio: schedule.instructors.bio || ''
       } : null,
-      classroom: schedule.classroom,
-      classType: schedule.classType,
-      students: schedule.studentSchedules.map((s: any) => ({
-        id: s.id,
-        name: s.user.name,
-        email: s.user.email,
-        phone: s.user.phone,
-        enrolledAt: new Date()
-      })),
-      createdAt: schedule.createdAt,
-      updatedAt: schedule.updatedAt
+      classroom: schedule.classrooms,
+      classType: schedule.class_types,
+      createdAt: schedule.created_at,
+      updatedAt: schedule.updated_at
     }
 
-    return createSuccessResponse(responseData)
+    return NextResponse.json({
+      success: true,
+      message: '시간표를 성공적으로 조회했습니다.',
+      data: responseData
+    })
 
   } catch (error) {
     console.error('시간표 조회 중 오류:', error)
-    return createInternalServerErrorResponse(error)
+    return NextResponse.json({
+      success: false,
+      message: '서버 오류가 발생했습니다.'
+    }, { status: 500 })
   }
 }
 
@@ -114,96 +95,101 @@ export async function PUT(
   try {
     const { id } = await context.params
     const data = await request.json()
+    console.log('시간표 수정 요청:', { id, data })
 
-    // 기존 시간표 존재 확인
-    const existingSchedule = await prisma.schedule.findUnique({
-      where: { id, isActive: true }
-    })
+    // 시간표 존재 확인
+    const { data: existingSchedule, error: checkError } = await supabase
+      .from('schedules')
+      .select('*')
+      .eq('id', id)
+      .eq('is_active', true)
+      .single()
 
-    if (!existingSchedule) {
-      return createNotFoundResponse('시간표')
-    }
-
-    // 입력 데이터 유효성 검증 (부분 업데이트용)
-    const validation = validateData(data, validateScheduleUpdate)
-    if (!validation.isValid) {
-      return createValidationErrorResponse(validation.errors)
-    }
-
-    // 관계 데이터 존재 확인 (변경된 경우만)
-    const checkPromises = []
-    
-    if (data.subjectId && data.subjectId !== existingSchedule.subjectId) {
-      checkPromises.push(prisma.subject.findUnique({ where: { id: data.subjectId } }))
-    }
-    if (data.instructorId && data.instructorId !== existingSchedule.instructorId) {
-      checkPromises.push(prisma.instructor.findUnique({ where: { id: data.instructorId } }))
-    }
-    if (data.classroomId && data.classroomId !== existingSchedule.classroomId) {
-      checkPromises.push(prisma.classroom.findUnique({ where: { id: data.classroomId } }))
-    }
-    if (data.classTypeId && data.classTypeId !== existingSchedule.classTypeId) {
-      checkPromises.push(prisma.classType.findUnique({ where: { id: data.classTypeId } }))
+    if (checkError || !existingSchedule) {
+      return NextResponse.json({
+        success: false,
+        message: '수정할 시간표를 찾을 수 없습니다.'
+      }, { status: 404 })
     }
 
-    if (checkPromises.length > 0) {
-      const relatedEntities = await Promise.all(checkPromises)
-      if (relatedEntities.some(entity => !entity)) {
-        return createErrorResponse('참조하는 데이터 중 존재하지 않는 것이 있습니다.', 404)
+    // 시간 형식 검증
+    if (data.startTime || data.endTime) {
+      const validateTimeFormat = (timeStr: string): boolean => {
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+        return timeRegex.test(timeStr)
+      }
+
+      if (data.startTime && !validateTimeFormat(data.startTime)) {
+        return NextResponse.json({
+          success: false,
+          message: '시작 시간 형식이 올바르지 않습니다. (HH:MM 형식 필요)'
+        }, { status: 400 })
+      }
+
+      if (data.endTime && !validateTimeFormat(data.endTime)) {
+        return NextResponse.json({
+          success: false,
+          message: '종료 시간 형식이 올바르지 않습니다. (HH:MM 형식 필요)'
+        }, { status: 400 })
       }
     }
 
-    // **완화된 충돌 검증**: 경고만 출력하고 수정은 허용
-    const needsConflictCheck = 
-      data.instructorId !== existingSchedule.instructorId ||
-      data.classroomId !== existingSchedule.classroomId ||
-      data.dayOfWeek !== existingSchedule.dayOfWeek ||
-      data.startTime !== existingSchedule.startTime ||
-      data.endTime !== existingSchedule.endTime
+    // 업데이트 데이터 준비
+    const updateData: any = {}
+    if (data.title !== undefined) updateData.title = data.title
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.dayOfWeek !== undefined) updateData.day_of_week = data.dayOfWeek
+    if (data.startTime !== undefined) updateData.start_time = data.startTime
+    if (data.endTime !== undefined) updateData.end_time = data.endTime
+    if (data.subjectId !== undefined) updateData.subject_id = data.subjectId
+    if (data.instructorId !== undefined) updateData.instructor_id = data.instructorId
+    if (data.classroomId !== undefined) updateData.classroom_id = data.classroomId
+    if (data.classTypeId !== undefined) updateData.class_type_id = data.classTypeId
+    if (data.maxStudents !== undefined) updateData.max_students = data.maxStudents
+    if (data.color !== undefined) updateData.color = data.color
 
-    if (needsConflictCheck) {
-      try {
-        const scheduleValidation = await validateCompleteSchedule({
-          instructorId: data.instructorId || existingSchedule.instructorId,
-          classroomId: data.classroomId || existingSchedule.classroomId,
-          dayOfWeek: data.dayOfWeek || existingSchedule.dayOfWeek,
-          startTime: data.startTime || existingSchedule.startTime,
-          endTime: data.endTime || existingSchedule.endTime,
-          maxStudents: data.maxStudents
-        }, id) // 현재 스케줄은 충돌 검사에서 제외
-
-              if (!scheduleValidation.isValid) {
-        // 충돌이 있어도 수정을 계속 진행 (개발/테스트 환경용)
-        // 프로덕션에서는 여기서 에러를 반환하도록 수정 필요
-      }
-    } catch (conflictError) {
-      // 충돌 검증 중 오류가 발생해도 계속 진행
-      }
-    }
+    updateData.updated_at = new Date().toISOString()
 
     // 시간표 업데이트
-    const updatedSchedule = await prisma.schedule.update({
-      where: { id },
+    const { data: updatedSchedule, error } = await supabase
+      .from('schedules')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    console.log('시간표 수정 결과:', { updatedSchedule, error })
+
+    if (error) {
+      console.error('시간표 수정 오류:', error)
+      return NextResponse.json({
+        success: false,
+        message: '시간표 수정 중 오류가 발생했습니다.'
+      }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: '시간표가 성공적으로 수정되었습니다.',
       data: {
-        title: data.title || existingSchedule.title,
-        description: data.description !== undefined ? data.description : existingSchedule.description,
-        dayOfWeek: data.dayOfWeek || existingSchedule.dayOfWeek,
-        startTime: data.startTime || existingSchedule.startTime,
-        endTime: data.endTime || existingSchedule.endTime,
-        maxStudents: data.maxStudents !== undefined ? data.maxStudents : existingSchedule.maxStudents,
-        subjectId: data.subjectId || existingSchedule.subjectId,
-        instructorId: data.instructorId || existingSchedule.instructorId,
-        classroomId: data.classroomId || existingSchedule.classroomId,
-        classTypeId: data.classTypeId || existingSchedule.classTypeId,
-        color: data.color || existingSchedule.color || '#BFDBFE' // 색상 필드 추가
+        id: updatedSchedule.id,
+        title: updatedSchedule.title,
+        description: updatedSchedule.description,
+        dayOfWeek: updatedSchedule.day_of_week,
+        startTime: updatedSchedule.start_time,
+        endTime: updatedSchedule.end_time,
+        maxStudents: updatedSchedule.max_students,
+        color: updatedSchedule.color,
+        updatedAt: updatedSchedule.updated_at
       }
     })
-
-    return createSuccessResponse(updatedSchedule)
 
   } catch (error) {
     console.error('시간표 수정 중 오류:', error)
-    return createInternalServerErrorResponse(error)
+    return NextResponse.json({
+      success: false,
+      message: '서버 오류가 발생했습니다.'
+    }, { status: 500 })
   }
 }
 
@@ -216,52 +202,69 @@ export async function DELETE(
 ) {
   try {
     const { id } = await context.params
+    console.log('시간표 삭제 요청:', { id })
 
-    // 기존 시간표 존재 확인
-    const existingSchedule = await prisma.schedule.findUnique({
-      where: { id, isActive: true }
-    })
+    // 시간표 존재 확인
+    const { data: existingSchedule, error: checkError } = await supabase
+      .from('schedules')
+      .select('*')
+      .eq('id', id)
+      .eq('is_active', true)
+      .single()
 
-    if (!existingSchedule) {
-      return createNotFoundResponse('시간표')
+    if (checkError || !existingSchedule) {
+      return NextResponse.json({
+        success: false,
+        message: '삭제할 시간표를 찾을 수 없습니다.'
+      }, { status: 404 })
     }
 
-    // **완화된 수강생 확인**: 경고만 출력하고 삭제는 허용
-    const studentCount = await prisma.studentSchedule.count({
-      where: { scheduleId: id }
-    })
-
-    if (studentCount > 0) {
-      // 개발/테스트 환경에서는 관련 수강생 데이터도 함께 삭제
-      await prisma.studentSchedule.deleteMany({
-        where: { scheduleId: id }
+    // 소프트 삭제 (is_active를 false로 변경)
+    const { error } = await supabase
+      .from('schedules')
+      .update({ 
+        is_active: false,
+        updated_at: new Date().toISOString()
       })
+      .eq('id', id)
+
+    console.log('시간표 삭제 결과:', { error })
+
+    if (error) {
+      console.error('시간표 삭제 오류:', error)
+      return NextResponse.json({
+        success: false,
+        message: '시간표 삭제 중 오류가 발생했습니다.'
+      }, { status: 500 })
     }
 
-    // 시간표 비활성화 (soft delete)
-    const deletedSchedule = await prisma.schedule.update({
-      where: { id },
-      data: { isActive: false }
-    })
-
-    return createSuccessResponse({ 
-      id: deletedSchedule.id,
-      message: '시간표가 성공적으로 삭제되었습니다.' 
+    return NextResponse.json({
+      success: true,
+      message: '시간표가 성공적으로 삭제되었습니다.'
     })
 
   } catch (error) {
     console.error('시간표 삭제 중 오류:', error)
-    return createInternalServerErrorResponse(error)
+    return NextResponse.json({
+      success: false,
+      message: '서버 오류가 발생했습니다.'
+    }, { status: 500 })
   }
 }
 
 /**
- * 지원하지 않는 메서드들
+ * 지원하지 않는 HTTP 메서드 처리
  */
 export async function POST() {
-  return createMethodNotAllowedResponse(['GET', 'PUT', 'DELETE'])
+  return NextResponse.json({
+    success: false,
+    message: 'Method not allowed. Use GET, PUT, or DELETE.'
+  }, { status: 405 })
 }
 
 export async function PATCH() {
-  return createMethodNotAllowedResponse(['GET', 'PUT', 'DELETE'])
-} 
+  return NextResponse.json({
+    success: false,
+    message: 'Method not allowed. Use GET, PUT, or DELETE.'
+  }, { status: 405 })
+}
