@@ -53,3 +53,6 @@ next-env.d.ts
 # OS
 .DS_Store
 Thumbs.db
+
+# Supabase migrations with sensitive data
+supabase/migrations/0004_seed_sample_data.sql
