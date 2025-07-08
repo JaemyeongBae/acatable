@@ -6,6 +6,14 @@
 import { useState, useEffect } from 'react'
 import Button from '@/components/ui/Button'
 
+// 로딩 스피너 컴포넌트
+const LoadingSpinner = ({ size = 'sm' }: { size?: 'sm' | 'md' }) => {
+  const sizeClass = size === 'sm' ? 'w-4 h-4' : 'w-6 h-6'
+  return (
+    <div className={`${sizeClass} animate-spin rounded-full border-2 border-gray-300 border-t-blue-600`} />
+  )
+}
+
 interface Classroom {
   id: string
   name: string
@@ -36,6 +44,9 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
     floor: '',
     location: ''
   })
+  // 개별 작업 로딩 상태
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // 강의실 목록 로드
   const loadClassrooms = async () => {
@@ -66,6 +77,7 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
       return
     }
 
+    setIsSubmitting(true)
     try {
       const response = await fetch('/api/classrooms', {
         method: 'POST',
@@ -94,6 +106,8 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
       }
     } catch (err) {
       alert('네트워크 오류가 발생했습니다.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -104,6 +118,7 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
       return
     }
 
+    setIsSubmitting(true)
     try {
       const response = await fetch(`/api/classrooms/${editingClassroom.id}`, {
         method: 'PUT',
@@ -132,6 +147,8 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
       }
     } catch (err) {
       alert('네트워크 오류가 발생했습니다.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -141,6 +158,7 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
       return
     }
 
+    setDeletingId(id)
     try {
       const response = await fetch(`/api/classrooms/${id}?academyId=${academyId}`, {
         method: 'DELETE',
@@ -156,6 +174,8 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
       }
     } catch (err) {
       alert('네트워크 오류가 발생했습니다.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -218,7 +238,7 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
         </div>
         <Button
           onClick={startAddingNew}
-          disabled={isAddingNew || editingClassroom !== null}
+          disabled={isAddingNew || editingClassroom !== null || isSubmitting}
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
           + 강의실 추가
@@ -302,8 +322,10 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
             </Button>
             <Button
               onClick={handleAddClassroom}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
             >
+              {isSubmitting && <LoadingSpinner size="sm" />}
               추가
             </Button>
           </div>
@@ -397,8 +419,10 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
                     </Button>
                     <Button
                       onClick={handleUpdateClassroom}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      disabled={isSubmitting}
+                      className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
                     >
+                      {isSubmitting && <LoadingSpinner size="sm" />}
                       저장
                     </Button>
                   </div>
@@ -426,14 +450,17 @@ export default function ClassroomManager({ academyId, onDataChange }: ClassroomM
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => startEditing(classroom)}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      disabled={isSubmitting || deletingId === classroom.id}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       수정
                     </button>
                     <button
                       onClick={() => handleDeleteClassroom(classroom.id)}
-                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                      disabled={isSubmitting || deletingId !== null}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                     >
+                      {deletingId === classroom.id && <LoadingSpinner size="sm" />}
                       삭제
                     </button>
                   </div>
