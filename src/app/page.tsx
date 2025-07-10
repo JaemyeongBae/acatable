@@ -71,42 +71,48 @@ export default function HomePage() {
   }, [searchTerm])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* 헤더 */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">우리학원시간표</h1>
+      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-blue-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent text-center">
+            Aca-Table
+          </h1>
         </div>
       </header>
 
       {/* 메인 컨텐츠 */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            학원 시간표를 쉽고 빠르게
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="text-center mb-16">
+          <h2 className="text-5xl font-bold text-gray-900 mb-6 leading-tight">
+            학원 시간표를
+            <br />
+            <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+              쉽고 빠르게
+            </span>
           </h2>
-          <p className="text-xl text-gray-600 mb-8">
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed">
             학원명을 검색하여 시간표를 확인하거나, 새로운 학원을 등록하세요
           </p>
         </div>
 
         {/* 검색 섹션 */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
+        <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-lg border border-blue-100 p-8 mb-12">
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="학원명을 검색하세요!"
+                placeholder="학원명을 검색하세요"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                onKeyDown={handleKeyPress}
+                className="w-full px-6 py-4 border border-gray-200 rounded-2xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white/50 backdrop-blur-sm transition-all duration-200 placeholder-gray-500"
               />
             </div>
             <button
               onClick={handleSearch}
               disabled={isLoading}
-              className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold text-lg rounded-2xl hover:from-blue-700 hover:to-blue-800 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               {isLoading ? '검색 중...' : '검색'}
             </button>
@@ -114,21 +120,26 @@ export default function HomePage() {
 
           {/* 오류 메시지 */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
               <p className="text-red-600">{error}</p>
             </div>
           )}
 
           {/* 검색 결과 */}
           {showResults && (
-            <div className="border-t border-gray-200 pt-6">
+            <div className="border-t border-blue-100 pt-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 검색 결과 ({searchResults.length}개)
               </h3>
               
               {searchResults.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">검색된 학원이 없습니다.</p>
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-500 mb-2">검색된 학원이 없습니다</p>
                   <p className="text-sm text-gray-400">
                     새로운 학원을 등록해보세요!
                   </p>
@@ -139,11 +150,11 @@ export default function HomePage() {
                     <div
                       key={academy.academyId}
                       onClick={() => handleAcademySelect(academy.academyCode)}
-                      className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 cursor-pointer transition-colors"
+                      className="p-5 border border-blue-100 rounded-2xl hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all duration-200 hover:shadow-md"
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <h4 className="font-semibold text-gray-900">
+                          <h4 className="font-semibold text-gray-900 text-lg">
                             {academy.academyName}
                           </h4>
                           <p className="text-sm text-gray-500">
@@ -151,7 +162,7 @@ export default function HomePage() {
                           </p>
                         </div>
                         <div className="text-blue-600">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
@@ -165,16 +176,21 @@ export default function HomePage() {
         </div>
 
         {/* 회원가입 섹션 */}
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl shadow-xl p-8 text-center text-white">
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </div>
+          <h3 className="text-3xl font-bold mb-4">
             새로운 학원 등록
           </h3>
-          <p className="text-gray-600 mb-6">
+          <p className="text-blue-100 mb-8 text-lg">
             우리 학원의 시간표 관리를 시작해보세요
           </p>
           <Link
             href="/signin"
-            className="inline-block px-8 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
+            className="inline-block px-8 py-4 bg-white text-blue-700 font-semibold text-lg rounded-2xl hover:bg-blue-50 focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl"
           >
             학원 회원가입
           </Link>
@@ -182,11 +198,12 @@ export default function HomePage() {
       </main>
 
       {/* 푸터 */}
-      <footer className="bg-white border-t border-gray-200 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <footer className="bg-white/80 backdrop-blur-md border-t border-blue-100 mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center text-gray-500">
-            <p>&copy; 2024 우리학원시간표. All rights reserved.</p>
-            <p className="mt-2">배포 URL: table.acatools.co.kr</p>
+            <p>&copy; 2025 Aca-Table. All rights reserved.</p>
+            <p className="mt-2 text-sm">학원 강사를 위한 종합 솔루션 플랫폼</p>
+            <p className="mt-2 text-sm">acatools.co.kr</p>
           </div>
         </div>
       </footer>

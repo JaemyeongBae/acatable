@@ -22,6 +22,16 @@ const CalendarView = dynamic(() => import('@/components/schedule/CalendarView'),
   ssr: false
 })
 
+const ScheduleListView = dynamic(() => import('@/components/schedule/ScheduleListView'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
+
+const ScheduleGridView = dynamic(() => import('@/components/schedule/ScheduleGridView'), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
+  ssr: false
+})
+
 const ScheduleDetailModal = dynamic(() => import('@/components/schedule/ScheduleDetailModal'), {
   loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
   ssr: false
@@ -52,8 +62,8 @@ export default function AdminSchedulePage() {
   // 컴포넌트 마운트 상태
   const [isMounted, setIsMounted] = useState(false)
   
-  // 뷰 모드 상태 - 캘린더 뷰 고정
-  const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'day'>('week')
+  // 뷰 모드 상태 - 4가지 뷰 모드 지원
+  const [viewMode, setViewMode] = useState<'week' | 'day' | 'list' | 'grid'>('week')
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
   
   // 폼 관련 상태
@@ -332,9 +342,9 @@ export default function AdminSchedulePage() {
           <div className="flex items-center space-x-4">
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
-                onClick={() => setCalendarViewMode('week')}
+                onClick={() => setViewMode('week')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  calendarViewMode === 'week' 
+                  viewMode === 'week' 
                     ? 'bg-white text-gray-900 shadow-sm' 
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
@@ -342,16 +352,36 @@ export default function AdminSchedulePage() {
                 주간
               </button>
               <button
-                onClick={() => setCalendarViewMode('day')}
+                onClick={() => setViewMode('day')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  calendarViewMode === 'day' 
+                  viewMode === 'day' 
                     ? 'bg-white text-gray-900 shadow-sm' 
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 일간
               </button>
-              {calendarViewMode === 'day' && (
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'list' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                리스트
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'grid' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                그리드
+              </button>
+              {viewMode === 'day' && (
                 <select
                   value={selectedDay}
                   onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
@@ -557,7 +587,10 @@ export default function AdminSchedulePage() {
           </Card>
 
           {/* 시간표 뷰 */}
-          <section aria-label="캘린더 뷰">
+          <section aria-label={
+            viewMode === 'list' ? '리스트 뷰' : 
+            viewMode === 'grid' ? '그리드 뷰' : '캘린더 뷰'
+          }>
             <ErrorBoundary>
               <Suspense fallback={
                 <div className="h-96 flex items-center justify-center bg-white rounded-lg border">
@@ -567,58 +600,94 @@ export default function AdminSchedulePage() {
                   </div>
                 </div>
               }>
-                <CalendarView
-                academyId={academyId}
-                viewMode={calendarViewMode}
-                selectedDay={selectedDay}
-                filters={{
-                  dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
-                  instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
-                  classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
-                  subjectIds: filters.subjectId ? [filters.subjectId] : undefined
-                }}
-                refreshKey={refreshKey}
-                onScheduleClick={(schedule) => {
-                  // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
-                  console.log('Schedule clicked:', schedule)
-                }}
-                onScheduleEdit={handleEditSchedule}
-                onScheduleCreate={(data) => handleAddSchedule(data)}
-                onScheduleUpdate={async (scheduleId, data) => {
-                  try {
-                    // 현재 스크롤 위치 저장
-                    setScrollPosition(window.scrollY)
-                    
-                    // startTime과 endTime이 Date 객체인 경우 문자열로 변환
-                    const updateData = {
-                      ...data,
-                      startTime: data.startTime instanceof Date 
-                        ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
-                        : data.startTime,
-                      endTime: data.endTime instanceof Date 
-                        ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
-                        : data.endTime
-                    }
-                    
-                    const response = await fetch(`/api/schedules/${scheduleId}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(updateData)
-                    })
-                    const result = await response.json()
-                    if (result.success) {
-                      setRefreshKey(prev => prev + 1)
-                      showNotification('success', '시간표가 수정되었습니다.')
-                    } else {
-                      showNotification('error', result.message || '수정에 실패했습니다.')
-                    }
-                  } catch (error) {
-                    showNotification('error', '네트워크 오류가 발생했습니다.')
-                  }
-                }}
-                onScheduleDelete={handleDeleteSchedule}
-                isReadOnly={false}
-                />
+                {viewMode === 'list' ? (
+                  <ScheduleListView
+                    academyId={academyId}
+                    filters={{
+                      dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                      instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                      classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                      subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+                    }}
+                    refreshKey={refreshKey}
+                    onScheduleClick={(schedule) => {
+                      // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
+                      console.log('Schedule clicked:', schedule)
+                    }}
+                    onScheduleEdit={handleEditSchedule}
+                    isReadOnly={false}
+                  />
+                ) : viewMode === 'grid' ? (
+                  <ScheduleGridView
+                    academyId={academyId}
+                    filters={{
+                      dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                      instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                      classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                      subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+                    }}
+                    refreshKey={refreshKey}
+                    onScheduleClick={(schedule) => {
+                      // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
+                      console.log('Schedule clicked:', schedule)
+                    }}
+                    onScheduleEdit={handleEditSchedule}
+                    isReadOnly={false}
+                  />
+                ) : (
+                  <CalendarView
+                    academyId={academyId}
+                    viewMode={viewMode as 'week' | 'day'}
+                    selectedDay={selectedDay}
+                    filters={{
+                      dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
+                      instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
+                      classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
+                      subjectIds: filters.subjectId ? [filters.subjectId] : undefined
+                    }}
+                    refreshKey={refreshKey}
+                    onScheduleClick={(schedule) => {
+                      // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
+                      console.log('Schedule clicked:', schedule)
+                    }}
+                    onScheduleEdit={handleEditSchedule}
+                    onScheduleCreate={(data) => handleAddSchedule(data)}
+                    onScheduleUpdate={async (scheduleId, data) => {
+                      try {
+                        // 현재 스크롤 위치 저장
+                        setScrollPosition(window.scrollY)
+                        
+                        // startTime과 endTime이 Date 객체인 경우 문자열로 변환
+                        const updateData = {
+                          ...data,
+                          startTime: data.startTime instanceof Date 
+                            ? `${data.startTime.getHours().toString().padStart(2, '0')}:${data.startTime.getMinutes().toString().padStart(2, '0')}`
+                            : data.startTime,
+                          endTime: data.endTime instanceof Date 
+                            ? `${data.endTime.getHours().toString().padStart(2, '0')}:${data.endTime.getMinutes().toString().padStart(2, '0')}`
+                            : data.endTime
+                        }
+                        
+                        const response = await fetch(`/api/schedules/${scheduleId}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(updateData)
+                        })
+                        const result = await response.json()
+                        if (result.success) {
+                          setRefreshKey(prev => prev + 1)
+                          showNotification('success', '시간표가 수정되었습니다.')
+                        } else {
+                          showNotification('error', result.message || '수정에 실패했습니다.')
+                        }
+                      } catch (error) {
+                        showNotification('error', '네트워크 오류가 발생했습니다.')
+                      }
+                    }}
+                    onScheduleDelete={handleDeleteSchedule}
+                    isReadOnly={false}
+                  />
+                )}
               </Suspense>
             </ErrorBoundary>
           </section>

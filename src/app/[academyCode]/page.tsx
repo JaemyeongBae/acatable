@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import CalendarView from '@/components/schedule/CalendarView'
+import ScheduleListView from '@/components/schedule/ScheduleListView'
+import ScheduleGridView from '@/components/schedule/ScheduleGridView'
 import ScheduleDetailModal from '@/components/schedule/ScheduleDetailModal'
 import Button from '@/components/ui/Button'
 import { DayOfWeek } from '@/types'
@@ -37,7 +39,7 @@ export default function AcademyPage() {
   const [error, setError] = useState('')
   
   // 시간표 뷰 관련 상태
-  const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'day'>('week')
+  const [viewMode, setViewMode] = useState<'week' | 'day' | 'list' | 'grid'>('grid')
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
   
   // 필터 관련 상태
@@ -219,13 +221,13 @@ export default function AcademyPage() {
           <div className="bg-white rounded-lg border p-4 shadow-md">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-4">
-                {/* 캘린더 뷰 옵션 */}
+                {/* 뷰 모드 옵션 */}
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-medium text-gray-700">보기:</span>
                   <button
-                    onClick={() => setCalendarViewMode('week')}
+                    onClick={() => setViewMode('week')}
                     className={`px-3 py-1 rounded text-sm ${
-                      calendarViewMode === 'week' 
+                      viewMode === 'week' 
                         ? 'bg-blue-100 text-blue-700' 
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
@@ -233,16 +235,36 @@ export default function AcademyPage() {
                     주간
                   </button>
                   <button
-                    onClick={() => setCalendarViewMode('day')}
+                    onClick={() => setViewMode('day')}
                     className={`px-3 py-1 rounded text-sm ${
-                      calendarViewMode === 'day' 
+                      viewMode === 'day' 
                         ? 'bg-blue-100 text-blue-700' 
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
                     일간
                   </button>
-                  {calendarViewMode === 'day' && (
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-3 py-1 rounded text-sm ${
+                      viewMode === 'list' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    리스트
+                  </button>
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`px-3 py-1 rounded text-sm ${
+                      viewMode === 'grid' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    그리드
+                  </button>
+                  {viewMode === 'day' && (
                     <select
                       value={selectedDay}
                       onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
@@ -384,15 +406,33 @@ export default function AcademyPage() {
 
         {/* 시간표 뷰 */}
         <div className="bg-white rounded-lg shadow-lg">
-          <CalendarView
-            academyId={academyInfo.academyId}
-            viewMode={calendarViewMode}
-            selectedDay={selectedDay}
-            filters={filters}
-            onScheduleClick={handleScheduleClick}
-            onScheduleEdit={handleScheduleClick}
-            isReadOnly={true}
-          />
+          {viewMode === 'list' ? (
+            <ScheduleListView
+              academyId={academyInfo.academyId}
+              filters={filters}
+              onScheduleClick={handleScheduleClick}
+              onScheduleEdit={handleScheduleClick}
+              isReadOnly={true}
+            />
+          ) : viewMode === 'grid' ? (
+            <ScheduleGridView
+              academyId={academyInfo.academyId}
+              filters={filters}
+              onScheduleClick={handleScheduleClick}
+              onScheduleEdit={handleScheduleClick}
+              isReadOnly={true}
+            />
+          ) : (
+            <CalendarView
+              academyId={academyInfo.academyId}
+              viewMode={viewMode as 'week' | 'day'}
+              selectedDay={selectedDay}
+              filters={filters}
+              onScheduleClick={handleScheduleClick}
+              onScheduleEdit={handleScheduleClick}
+              isReadOnly={true}
+            />
+          )}
         </div>
 
         {/* 시간표 상세 모달 */}
