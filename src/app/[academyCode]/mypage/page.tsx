@@ -124,7 +124,7 @@ export default function MyPage() {
                 {academyInfo?.academyName || academyCode} 마이페이지
               </p>
               <p className="text-sm text-gray-500 mt-2">
-                관리자 비밀번호를 입력하세요
+                관리자 비밀번호 또는 Admin 마스터 비밀번호를 입력하세요
               </p>
             </div>
 
@@ -138,7 +138,7 @@ export default function MyPage() {
               
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  관리자 비밀번호
+                  관리자 비밀번호 / Admin 마스터 비밀번호
                 </label>
                 <input
                   type="password"

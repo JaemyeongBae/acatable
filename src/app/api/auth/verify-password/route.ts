@@ -40,6 +40,36 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyPas
     
     console.log('검증 요청:', { academyCode, password: '[HIDDEN]' })
     
+    // Admin 마스터 비밀번호 확인
+    const adminMasterPassword = process.env.ADMIN_MASTER_PASSWORD
+    if (adminMasterPassword && password === adminMasterPassword) {
+      // 마스터 키로 학원 정보 조회
+      const { data: academyData, error: academyError } = await supabase
+        .from('academies')
+        .select('id, name')
+        .eq('code', academyCode)
+        .single()
+      
+      if (academyError || !academyData) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: '학원을 찾을 수 없습니다.'
+          },
+          { status: 404 }
+        )
+      }
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Admin 마스터 인증이 완료되었습니다.',
+        data: {
+          academyId: academyData.id,
+          academyName: academyData.name
+        }
+      })
+    }
+    
     // Supabase 함수 호출로 인증 처리
     const { data, error } = await supabase.rpc('authenticate_academy', {
       p_academy_code: academyCode,
