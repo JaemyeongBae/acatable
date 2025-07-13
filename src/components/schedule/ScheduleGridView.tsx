@@ -130,6 +130,61 @@ export default function ScheduleGridView({
     return grouped
   }, [schedules])
 
+  // 같은 시간대의 수업들을 그룹화
+  const timeGroupedSchedules = React.useMemo(() => {
+    const result: Record<DayOfWeek, Array<Array<any>>> = {
+      MONDAY: [],
+      TUESDAY: [],
+      WEDNESDAY: [],
+      THURSDAY: [],
+      FRIDAY: [],
+      SATURDAY: [],
+      SUNDAY: []
+    }
+
+    Object.entries(groupedSchedules).forEach(([day, daySchedules]) => {
+      const groups: Array<Array<any>> = []
+      let currentGroup: any[] = []
+      let lastTime = ''
+
+      daySchedules.forEach((schedule, index) => {
+        const currentTime = `${formatTime(schedule.startTime)}-${formatTime(schedule.endTime)}`
+        
+        if (index === 0 || currentTime === lastTime) {
+          currentGroup.push(schedule)
+        } else {
+          if (currentGroup.length > 0) {
+            // 그룹 내에서 강의실명 기준으로 정렬
+            currentGroup.sort((a, b) => {
+              const roomA = a.classroom?.name || '미지정'
+              const roomB = b.classroom?.name || '미지정'
+              return roomA.localeCompare(roomB)
+            })
+            groups.push(currentGroup)
+          }
+          currentGroup = [schedule]
+        }
+        
+        lastTime = currentTime
+
+        // 마지막 항목 처리
+        if (index === daySchedules.length - 1 && currentGroup.length > 0) {
+          // 마지막 그룹도 강의실명 기준으로 정렬
+          currentGroup.sort((a, b) => {
+            const roomA = a.classroom?.name || '미지정'
+            const roomB = b.classroom?.name || '미지정'
+            return roomA.localeCompare(roomB)
+          })
+          groups.push(currentGroup)
+        }
+      })
+
+      result[day as DayOfWeek] = groups
+    })
+
+    return result
+  }, [groupedSchedules])
+
   // 스케줄 클릭 핸들러
   const handleScheduleClick = (schedule: any) => {
     if (onScheduleClick) {
@@ -200,58 +255,64 @@ export default function ScheduleGridView({
                   </h3>
                 </div>
 
-                {daySchedules.length === 0 ? (
+                {timeGroupedSchedules[day].length === 0 ? (
                   <div className="flex items-center justify-center h-24 text-gray-400 text-xs">
                     <p>시간표 없음</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {daySchedules.map(schedule => (
-                      <div
-                        key={schedule.id}
-                        className={`p-2 rounded-md border-l-4 cursor-pointer hover:shadow-sm transition-all duration-200 ${
-                          !isReadOnly ? 'hover:bg-gray-50' : ''
-                        }`}
-                        style={{ 
-                          borderLeftColor: schedule.color || '#6B7280',
-                          backgroundColor: `${schedule.color || '#6B7280'}08`
-                        }}
-                        onClick={() => handleScheduleClick(schedule)}
-                      >
-                        {/* 강좌명 */}
-                        <div className="font-medium text-xs text-gray-900 mb-1 leading-tight">
-                          {schedule.title || schedule.subject?.name || '제목 없음'}
+                  <div className="space-y-3">
+                    {timeGroupedSchedules[day].map((group, groupIndex) => (
+                      <div key={groupIndex} className="space-y-1">
+                        {/* 같은 시간대 그룹 헤더 */}
+                        <div className="text-xs font-medium text-gray-700 px-2 py-1 bg-gray-100 rounded-t flex items-center justify-between">
+                          <span>{formatTime(group[0].startTime)} - {formatTime(group[0].endTime)}</span>
+                          <span className="text-gray-500">{group.length}개 수업</span>
                         </div>
                         
-                        {/* 시간 */}
-                        <div className="text-xs font-medium text-gray-700 mb-1">
-                          {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
-                        </div>
-                        
-                        {/* 강사명 */}
-                        <div className="text-xs text-gray-600 mb-1">
-                          👨‍🏫 {schedule.instructor?.user?.name || schedule.instructor?.name || '미지정'}
-                        </div>
-                        
-                        {/* 강의실 */}
-                        <div className="text-xs text-gray-600">
-                          🏫 {schedule.classroom?.name || '미지정'}
-                        </div>
-                        
-                        {/* 편집 버튼 (읽기 전용이 아닌 경우) */}
-                        {!isReadOnly && (
-                          <div className="mt-2 flex justify-end">
-                            <button
-                              onClick={(e) => handleScheduleEdit(schedule, e)}
-                              className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
-                              aria-label="시간표 편집"
+                        {/* 같은 시간대 수업들 */}
+                        <div className="space-y-1 border border-gray-200 rounded-b p-1">
+                          {group.map(schedule => (
+                            <div
+                              key={schedule.id}
+                              className={`p-2 rounded-md border-l-4 cursor-pointer hover:shadow-sm transition-all duration-200 ${
+                                !isReadOnly ? 'hover:bg-gray-50' : ''
+                              }`}
+                              style={{ 
+                                borderLeftColor: schedule.color || '#6B7280',
+                                backgroundColor: `${schedule.color || '#6B7280'}08`
+                              }}
+                              onClick={() => handleScheduleClick(schedule)}
                             >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                          </div>
-                        )}
+                              {/* 강좌명 */}
+                              <div className="font-medium text-xs text-gray-900 mb-1 leading-tight">
+                                {schedule.title || schedule.subject?.name || '제목 없음'}
+                              </div>
+                              
+                              {/* 시간은 이제 그룹 헤더에 표시되므로 개별 표시하지 않음 */}
+                              
+                              {/* 강사명과 강의실 */}
+                              <div className="text-xs text-gray-600 flex justify-between items-center">
+                                <span>{schedule.instructor?.user?.name || schedule.instructor?.name || '미지정'}</span>
+                                <span>{schedule.classroom?.name || '미지정'}</span>
+                              </div>
+                              
+                              {/* 편집 버튼 (읽기 전용이 아닌 경우) */}
+                              {!isReadOnly && (
+                                <div className="mt-2 flex justify-end">
+                                  <button
+                                    onClick={(e) => handleScheduleEdit(schedule, e)}
+                                    className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                                    aria-label="시간표 편집"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -273,4 +334,4 @@ export default function ScheduleGridView({
       </div>
     </div>
   )
-} 
+}
