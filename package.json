@@ -1,6 +1,6 @@
 {
   "name": "acatable",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "private": true,
   "description": "학원 시간표 관리 웹 서비스",
   "scripts": {

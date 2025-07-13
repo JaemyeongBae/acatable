@@ -536,7 +536,6 @@ export default function CalendarView({
     if (isReadOnly) return
     
     e.preventDefault()
-    e.stopPropagation()
     
     const scheduleElement = e.currentTarget as HTMLElement
     if (!scheduleElement) return
@@ -547,6 +546,16 @@ export default function CalendarView({
     
     // 리사이즈 모드 확인
     const resizeType = getResizeMode(e, scheduleElement)
+    
+    // 리사이즈 핸들이나 시간표 중앙 부분을 클릭한 경우에만 이벤트 전파 차단
+    // 가장자리 5px 영역은 새 시간표 생성을 위해 이벤트 전파 허용
+    const edgeThreshold = 5
+    const isInEdgeArea = offsetX < edgeThreshold || offsetX > rect.width - edgeThreshold || 
+                        offsetY < edgeThreshold || offsetY > rect.height - edgeThreshold
+    
+    if (resizeType || (!isInEdgeArea && rect.width > 20 && rect.height > 20)) {
+      e.stopPropagation()
+    }
     
     if (resizeType) {
       // 리사이즈 모드 시작
@@ -678,7 +687,36 @@ export default function CalendarView({
   }, [contextMenu.visible])
 
 
-  // 기존 handleMouseDown 함수 (빈 영역 클릭용)
+  // 통합 마우스 다운 핸들러 (컨테이너 레벨)
+  const handleContainerMouseDown = useCallback((e: React.MouseEvent) => {
+    // 읽기 전용 모드에서는 드래그 비활성화
+    if (isReadOnly) return
+    
+    // 시간표 블록을 클릭한 경우 해당 블록의 핸들러에 위임
+    const target = e.target as HTMLElement
+    const scheduleElement = target.closest('[data-schedule-id]')
+    
+    if (scheduleElement) {
+      // 시간표 블록을 클릭한 경우 - 별도 처리 불필요 (개별 핸들러가 처리)
+      return
+    }
+    
+    // 빈 영역을 클릭한 경우 - 새 시간표 생성
+    e.preventDefault()
+    
+    setDragOffset(null)
+    setDraggedSchedule(null)
+    
+    const position = getTimeAndDayFromPosition(e.clientX, e.clientY)
+    if (position) {
+      setDragStart(position)
+      setDragCurrent(position)
+    }
+    
+    setIsDragging(true)
+  }, [isReadOnly, getTimeAndDayFromPosition])
+
+  // 기존 handleMouseDown 함수 (빈 영역 클릭용) - 백업용으로 유지
   const handleMouseDown = useCallback((e: React.MouseEvent, schedule?: any) => {
     // 읽기 전용 모드에서는 드래그 비활성화
     if (isReadOnly) return
@@ -929,6 +967,7 @@ export default function CalendarView({
     return (
       <div
         key={schedule.id}
+        data-schedule-id={schedule.id}
         className={`absolute rounded transition-all duration-75 ${
           totalOverlaps > 1 ? 'z-10' : 'z-10'
         } ${
@@ -1346,7 +1385,11 @@ export default function CalendarView({
                 : []
 
               return (
-                <div key={day} className="flex-1 border-r-2 border-gray-300 relative bg-white">
+                <div 
+                  key={day} 
+                  className="flex-1 border-r-2 border-gray-300 relative bg-white"
+                  onMouseDown={handleContainerMouseDown}
+                >
                   {/* 시간 슬롯 배경 */}
                   {timeSlots.map((timeMinutes, index) => {
                     const nextIsHourMark = index < timeSlots.length - 1 && timeSlots[index + 1] % 60 === 0 // 다음이 정시인지 체크
@@ -1358,7 +1401,6 @@ export default function CalendarView({
                             ? 'border-b border-gray-300' // 다음이 정각: 중간 굵기 테두리 (요일 세로선과 비슷)
                             : 'border-b border-gray-100'   // 일반: 얇은 회색 테두리
                         } ${isReadOnly ? 'cursor-default' : 'hover:bg-blue-50 cursor-crosshair'}`}
-                        onMouseDown={(e) => !isReadOnly && handleMouseDown(e)}
                       />
                     )
                   })}
