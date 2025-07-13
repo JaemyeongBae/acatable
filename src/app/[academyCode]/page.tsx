@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import CalendarView from '@/components/schedule/CalendarView'
-import ScheduleListView from '@/components/schedule/ScheduleListView'
 import ScheduleGridView from '@/components/schedule/ScheduleGridView'
 import ScheduleDetailModal from '@/components/schedule/ScheduleDetailModal'
 import Button from '@/components/ui/Button'
@@ -39,7 +38,7 @@ export default function AcademyPage() {
   const [error, setError] = useState('')
   
   // 시간표 뷰 관련 상태
-  const [viewMode, setViewMode] = useState<'week' | 'day' | 'list' | 'grid'>('grid')
+  const [viewMode, setViewMode] = useState<'week' | 'day' | 'grid'>('grid')
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
   
   // 필터 관련 상태
@@ -245,16 +244,6 @@ export default function AcademyPage() {
                     일간
                   </button>
                   <button
-                    onClick={() => setViewMode('list')}
-                    className={`px-3 py-1 rounded text-sm ${
-                      viewMode === 'list' 
-                        ? 'bg-blue-100 text-blue-700' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    리스트
-                  </button>
-                  <button
                     onClick={() => setViewMode('grid')}
                     className={`px-3 py-1 rounded text-sm ${
                       viewMode === 'grid' 
@@ -406,15 +395,7 @@ export default function AcademyPage() {
 
         {/* 시간표 뷰 */}
         <div className="bg-white rounded-lg shadow-lg">
-          {viewMode === 'list' ? (
-            <ScheduleListView
-              academyId={academyInfo.academyId}
-              filters={filters}
-              onScheduleClick={handleScheduleClick}
-              onScheduleEdit={handleScheduleClick}
-              isReadOnly={true}
-            />
-          ) : viewMode === 'grid' ? (
+          {viewMode === 'grid' ? (
             <ScheduleGridView
               academyId={academyInfo.academyId}
               filters={filters}

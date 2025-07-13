@@ -22,10 +22,6 @@ const CalendarView = dynamic(() => import('@/components/schedule/CalendarView'),
   ssr: false
 })
 
-const ScheduleListView = dynamic(() => import('@/components/schedule/ScheduleListView'), {
-  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
-  ssr: false
-})
 
 const ScheduleGridView = dynamic(() => import('@/components/schedule/ScheduleGridView'), {
   loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
@@ -63,7 +59,7 @@ export default function AdminSchedulePage() {
   const [isMounted, setIsMounted] = useState(false)
   
   // 뷰 모드 상태 - 4가지 뷰 모드 지원
-  const [viewMode, setViewMode] = useState<'week' | 'day' | 'list' | 'grid'>('week')
+  const [viewMode, setViewMode] = useState<'week' | 'day' | 'grid'>('week')
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
   
   // 폼 관련 상태
@@ -362,16 +358,6 @@ export default function AdminSchedulePage() {
                 일간
               </button>
               <button
-                onClick={() => setViewMode('list')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'list' 
-                    ? 'bg-white text-gray-900 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                리스트
-              </button>
-              <button
                 onClick={() => setViewMode('grid')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   viewMode === 'grid' 
@@ -588,7 +574,6 @@ export default function AdminSchedulePage() {
 
           {/* 시간표 뷰 */}
           <section aria-label={
-            viewMode === 'list' ? '리스트 뷰' : 
             viewMode === 'grid' ? '그리드 뷰' : '캘린더 뷰'
           }>
             <ErrorBoundary>
@@ -600,24 +585,7 @@ export default function AdminSchedulePage() {
                   </div>
                 </div>
               }>
-                {viewMode === 'list' ? (
-                  <ScheduleListView
-                    academyId={academyId}
-                    filters={{
-                      dayOfWeek: filters.dayOfWeek ? [filters.dayOfWeek as DayOfWeek] : undefined,
-                      instructorIds: filters.instructorId ? [filters.instructorId] : undefined,
-                      classroomIds: filters.classroomId ? [filters.classroomId] : undefined,
-                      subjectIds: filters.subjectId ? [filters.subjectId] : undefined
-                    }}
-                    refreshKey={refreshKey}
-                    onScheduleClick={(schedule) => {
-                      // 단일 클릭 시에는 상세 정보 표시 (향후 구현)
-                      console.log('Schedule clicked:', schedule)
-                    }}
-                    onScheduleEdit={handleEditSchedule}
-                    isReadOnly={false}
-                  />
-                ) : viewMode === 'grid' ? (
+                {viewMode === 'grid' ? (
                   <ScheduleGridView
                     academyId={academyId}
                     filters={{

@@ -105,6 +105,13 @@ const groupOverlappingSchedules = (schedules: any[]): any[][] => {
       }
     })
     
+    // 그룹 내에서 강의실명 순으로 정렬
+    overlappingGroup.sort((a, b) => {
+      const roomA = a.classroom?.name || '미지정'
+      const roomB = b.classroom?.name || '미지정'
+      return roomA.localeCompare(roomB)
+    })
+    
     groups.push(overlappingGroup)
   })
   
@@ -806,10 +813,20 @@ export default function CalendarView({
   const renderOverlappingSchedules = (scheduleGroup: any[], dayIndex: number) => {
     if (scheduleGroup.length === 0) return null
     
-    // 겹치는 스케줄들을 시작 시간 순으로 정렬
-    const sortedSchedules = [...scheduleGroup].sort((a, b) => 
-      timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
-    )
+    // 겹치는 스케줄들을 시작 시간 순으로 정렬하고, 같은 시간인 경우 강의실명 순으로 정렬
+    const sortedSchedules = [...scheduleGroup].sort((a, b) => {
+      const timeA = timeToMinutes(a.startTime)
+      const timeB = timeToMinutes(b.startTime)
+      
+      if (timeA !== timeB) {
+        return timeA - timeB
+      }
+      
+      // 시작 시간이 같은 경우 강의실명으로 정렬
+      const roomA = a.classroom?.name || '미지정'
+      const roomB = b.classroom?.name || '미지정'
+      return roomA.localeCompare(roomB)
+    })
     
     // 겹치는 스케줄이 1개인 경우 기존 방식으로 렌더링
     if (sortedSchedules.length === 1) {
@@ -946,16 +963,24 @@ export default function CalendarView({
           </>
         )}
         {isShortClass || totalOverlaps > 1 ? (
-          // 45분 이내 짧은 수업 또는 겹치는 수업: 수업명과 시간 표시
+          // 45분 이내 짧은 수업 또는 겹치는 수업: 수업명, 시간, 강사명, 강의실 표시
           <>
             <div className={`font-bold text-xs truncate mb-1 ${textColor}`}>
               {schedule.title}
             </div>
-            <div className={`text-xs ${textColor}`}>
+            <div className={`text-xs mb-1 ${textColor}`}>
               {isCurrentlyResizing 
                 ? `${minutesToTime(currentStartMinutes)} - ${minutesToTime(currentEndMinutes)}`
                 : `${schedule.startTime} - ${schedule.endTime}`
               }
+            </div>
+            <div className="flex justify-between items-center">
+              <div className={`text-xs truncate flex-1 mr-2 ${textColor}`}>
+                {schedule.instructor ? schedule.instructor.name : '강사 미정'}
+              </div>
+              <div className={`text-xs whitespace-nowrap ${textColor}`}>
+                {schedule.classroom ? schedule.classroom.name : '강의실 미정'}
+              </div>
             </div>
           </>
         ) : (
@@ -1304,7 +1329,20 @@ export default function CalendarView({
             {displayDays.map((day, dayIndex) => {
               const actualDayIndex = viewMode === 'week' ? dayIndex : selectedDay
               const daySchedules = Array.isArray(schedules) 
-                ? schedules.filter((s: Schedule) => s && s.dayOfWeek && DAY_OF_WEEK_TO_NUMBER[s.dayOfWeek] === actualDayIndex) 
+                ? schedules
+                    .filter((s: Schedule) => s && s.dayOfWeek && DAY_OF_WEEK_TO_NUMBER[s.dayOfWeek] === actualDayIndex)
+                    .sort((a, b) => {
+                      // 시간 순으로 먼저 정렬
+                      const timeA = timeToMinutes(a.startTime)
+                      const timeB = timeToMinutes(b.startTime)
+                      if (timeA !== timeB) {
+                        return timeA - timeB
+                      }
+                      // 같은 시간인 경우 강의실명 순으로 정렬
+                      const roomA = a.classroom?.name || '미지정'
+                      const roomB = b.classroom?.name || '미지정'
+                      return roomA.localeCompare(roomB)
+                    })
                 : []
 
               return (
