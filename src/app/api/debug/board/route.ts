@@ -14,12 +14,19 @@ export async function GET(request: NextRequest) {
       .limit(1)
     
     // Check board tables exist
-    const { data: tables, error: tablesError } = await supabase
-      .rpc('get_table_info', {
-        table_names: ['board_posts', 'board_comments', 'board_votes']
-      })
-      .single()
-      .catch(() => ({ data: null, error: 'RPC function not found' }))
+    let tables = null
+    let tablesError = null
+    try {
+      const result = await supabase
+        .rpc('get_table_info', {
+          table_names: ['board_posts', 'board_comments', 'board_votes']
+        })
+        .single()
+      tables = result.data
+      tablesError = result.error
+    } catch (e) {
+      tablesError = 'RPC function not found'
+    }
     
     // Get sample academy
     const { data: academy, error: academyError } = await supabase

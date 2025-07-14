@@ -78,7 +78,7 @@ export async function POST(
     // Get client IP
     const forwarded = request.headers.get('x-forwarded-for')
     const realIp = request.headers.get('x-real-ip')
-    const clientIp = forwarded?.split(',')[0] || realIp || request.ip || '127.0.0.1'
+    const clientIp = forwarded?.split(',')[0] || realIp || '127.0.0.1'
 
     // Verify post exists and belongs to academy
     const { data: post, error: postError } = await supabase

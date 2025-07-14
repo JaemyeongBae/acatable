@@ -39,7 +39,8 @@ export async function POST(
       return NextResponse.json({ success: false, message: '댓글을 찾을 수 없습니다' }, { status: 404 })
     }
 
-    if (comment.board_posts.academy_code !== academyCode) {
+    const post = comment.board_posts as any
+    if (post.academy_code !== academyCode) {
       return NextResponse.json({ success: false, message: '잘못된 접근입니다' }, { status: 403 })
     }
 
