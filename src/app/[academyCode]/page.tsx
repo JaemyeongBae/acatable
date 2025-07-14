@@ -40,6 +40,7 @@ export default function AcademyPage() {
   // 시간표 뷰 관련 상태
   const [viewMode, setViewMode] = useState<'week' | 'day' | 'grid'>('grid')
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY')
+  const [isMobile, setIsMobile] = useState(false)
   
   // 필터 관련 상태
   const [showFilters, setShowFilters] = useState(false)
@@ -60,6 +61,46 @@ export default function AcademyPage() {
     classrooms: [],
     subjects: []
   })
+
+  // 모바일 감지 및 현재 요일 설정
+  useEffect(() => {
+    const checkMobileAndSetDay = () => {
+      // 모바일 기기 감지
+      const isMobileDevice = window.innerWidth <= 768
+      setIsMobile(isMobileDevice)
+      
+      // 현재 요일 계산
+      const today = new Date()
+      const dayOfWeek = today.getDay() // 0 = 일요일, 1 = 월요일, ..., 6 = 토요일
+      const dayMapping: DayOfWeek[] = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+      const currentDay = dayMapping[dayOfWeek]
+      
+      // 모바일에서는 그리드 뷰를 기본으로 설정하고 현재 요일로 필터
+      if (isMobileDevice) {
+        setViewMode('grid')
+        setSelectedDay(currentDay)
+        setFilters(prev => ({
+          ...prev,
+          dayOfWeek: [currentDay]
+        }))
+      }
+    }
+    
+    checkMobileAndSetDay()
+    
+    // 윈도우 리사이즈 이벤트 리스너
+    const handleResize = () => {
+      const isMobileDevice = window.innerWidth <= 768
+      setIsMobile(isMobileDevice)
+      
+      if (isMobileDevice && viewMode !== 'grid') {
+        setViewMode('grid')
+      }
+    }
+    
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [viewMode])
 
   // 학원 정보 및 필터 옵션 로딩
   useEffect(() => {
@@ -224,31 +265,35 @@ export default function AcademyPage() {
         {/* 뷰 모드 선택 및 필터 */}
         <div className="mb-6">
           <div className="bg-white rounded-lg border p-4 shadow-md">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-4">
+            <div className={`${isMobile ? 'flex-col space-y-3' : 'flex justify-between items-center'}`}>
+              <div className={`flex items-center ${isMobile ? 'flex-wrap gap-2' : 'space-x-4'}`}>
                 {/* 뷰 모드 옵션 */}
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-medium text-gray-700">보기:</span>
-                  <button
-                    onClick={() => setViewMode('week')}
-                    className={`px-3 py-1 rounded text-sm ${
-                      viewMode === 'week' 
-                        ? 'bg-blue-100 text-blue-700' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    주간
-                  </button>
-                  <button
-                    onClick={() => setViewMode('day')}
-                    className={`px-3 py-1 rounded text-sm ${
-                      viewMode === 'day' 
-                        ? 'bg-blue-100 text-blue-700' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    일간
-                  </button>
+                  {!isMobile && (
+                    <>
+                      <button
+                        onClick={() => setViewMode('week')}
+                        className={`px-3 py-1 rounded text-sm ${
+                          viewMode === 'week' 
+                            ? 'bg-blue-100 text-blue-700' 
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        주간
+                      </button>
+                      <button
+                        onClick={() => setViewMode('day')}
+                        className={`px-3 py-1 rounded text-sm ${
+                          viewMode === 'day' 
+                            ? 'bg-blue-100 text-blue-700' 
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        일간
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={() => setViewMode('grid')}
                     className={`px-3 py-1 rounded text-sm ${
@@ -275,6 +320,33 @@ export default function AcademyPage() {
                     </select>
                   )}
                 </div>
+                
+                {/* 모바일용 요일 선택기 */}
+                {isMobile && viewMode === 'grid' && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-700">요일:</span>
+                    <select
+                      value={filters.dayOfWeek?.[0] || selectedDay}
+                      onChange={(e) => {
+                        const day = e.target.value as DayOfWeek
+                        setSelectedDay(day)
+                        setFilters(prev => ({
+                          ...prev,
+                          dayOfWeek: [day]
+                        }))
+                      }}
+                      className="px-3 py-1 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="MONDAY">월요일</option>
+                      <option value="TUESDAY">화요일</option>
+                      <option value="WEDNESDAY">수요일</option>
+                      <option value="THURSDAY">목요일</option>
+                      <option value="FRIDAY">금요일</option>
+                      <option value="SATURDAY">토요일</option>
+                      <option value="SUNDAY">일요일</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* 필터 토글 버튼 */}
