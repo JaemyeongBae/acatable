@@ -58,3 +58,4 @@ Thumbs.db
 supabase/migrations/0004_seed_sample_data.sql
 docs/
 screenshots/
+server.log

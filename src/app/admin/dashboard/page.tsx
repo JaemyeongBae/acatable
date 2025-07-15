@@ -18,6 +18,15 @@ export default function AdminDashboardPage() {
   const [academies, setAcademies] = useState<Academy[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [selectedAcademy, setSelectedAcademy] = useState<Academy | null>(null)
+  const [passwordForm, setPasswordForm] = useState({
+    newPassword: '',
+    confirmPassword: '',
+    adminPassword: ''
+  })
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
 
   // 인증 확인
   useEffect(() => {
@@ -52,6 +61,73 @@ export default function AdminDashboardPage() {
   const handleLogout = () => {
     sessionStorage.removeItem('admin_authenticated')
     router.push('/admin/login')
+  }
+
+  const handlePasswordChange = (academy: Academy) => {
+    setSelectedAcademy(academy)
+    setShowPasswordModal(true)
+    setPasswordForm({
+      newPassword: '',
+      confirmPassword: '',
+      adminPassword: ''
+    })
+    setPasswordError('')
+  }
+
+  const submitPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    const { newPassword, confirmPassword, adminPassword } = passwordForm
+    
+    if (!newPassword || !confirmPassword || !adminPassword) {
+      setPasswordError('모든 필드를 입력해주세요.')
+      return
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordError('새 비밀번호가 일치하지 않습니다.')
+      return
+    }
+    
+    if (newPassword.length < 6) {
+      setPasswordError('새 비밀번호는 최소 6자 이상이어야 합니다.')
+      return
+    }
+    
+    setPasswordLoading(true)
+    setPasswordError('')
+    
+    try {
+      const response = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          academyCode: selectedAcademy?.code,
+          newPassword,
+          adminPassword
+        }),
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(data.message)
+        setShowPasswordModal(false)
+        setPasswordForm({
+          newPassword: '',
+          confirmPassword: '',
+          adminPassword: ''
+        })
+      } else {
+        setPasswordError(data.message || '비밀번호 변경에 실패했습니다.')
+      }
+    } catch (err) {
+      setPasswordError('비밀번호 변경 중 오류가 발생했습니다.')
+    } finally {
+      setPasswordLoading(false)
+    }
   }
 
   if (loading) {
@@ -232,6 +308,13 @@ export default function AdminDashboardPage() {
                         >
                           수정 페이지
                         </Link>
+                        <span className="text-gray-300">|</span>
+                        <button
+                          onClick={() => handlePasswordChange(academy)}
+                          className="text-red-600 hover:text-red-900 text-sm font-medium"
+                        >
+                          비밀번호 변경
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -251,6 +334,95 @@ export default function AdminDashboardPage() {
           )}
         </div>
       </main>
+
+      {/* 비밀번호 변경 모달 */}
+      {showPasswordModal && selectedAcademy && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              비밀번호 변경 - {selectedAcademy.name}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              학원 코드: <span className="font-mono font-medium">{selectedAcademy.code}</span>
+            </p>
+            
+            <form onSubmit={submitPasswordChange} className="space-y-4">
+              {passwordError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-600 text-sm">{passwordError}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Admin 마스터 비밀번호
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.adminPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, adminPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  새 비밀번호
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  minLength={6}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">최소 6자 이상 입력해주세요</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  새 비밀번호 확인
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  required
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false)
+                    setSelectedAcademy(null)
+                    setPasswordForm({
+                      newPassword: '',
+                      confirmPassword: '',
+                      adminPassword: ''
+                    })
+                    setPasswordError('')
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                >
+                  {passwordLoading ? '변경 중...' : '변경'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -55,6 +55,9 @@ export default function AcademyPage() {
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   
+  // 클라이언트 사이드 체크 (hydration 에러 방지)
+  const [isClient, setIsClient] = useState(false)
+  
   // 필터 옵션
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     instructors: [],
@@ -62,8 +65,15 @@ export default function AcademyPage() {
     subjects: []
   })
 
+  // 클라이언트 사이드 확인
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
   // 모바일 감지 및 현재 요일 설정
   useEffect(() => {
+    if (!isClient) return
+    
     const checkMobileAndSetDay = () => {
       // 모바일 기기 감지
       const isMobileDevice = window.innerWidth <= 768
@@ -100,7 +110,7 @@ export default function AcademyPage() {
     
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [viewMode])
+  }, [viewMode, isClient])
 
   // 학원 정보 및 필터 옵션 로딩
   useEffect(() => {
@@ -164,6 +174,14 @@ export default function AcademyPage() {
   // 필터 초기화
   const handleResetFilters = () => {
     setFilters({})
+  }
+
+  // 전체 요일 보기
+  const handleShowAllDays = () => {
+    setFilters(prev => ({
+      ...prev,
+      dayOfWeek: undefined
+    }))
   }
 
   // 활성 필터 카운트
@@ -349,26 +367,57 @@ export default function AcademyPage() {
                 )}
               </div>
 
-              {/* 필터 토글 버튼 */}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 font-medium"
-              >
-                <svg 
-                  className={`w-5 h-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
+              {/* 우측 버튼들 */}
+              {isClient && (
+                <div className={`flex items-center ${isMobile ? 'flex-wrap gap-2 justify-start' : 'space-x-3'}`}>
+                {/* 전체 요일 보기 버튼 */}
+                <button
+                  onClick={handleShowAllDays}
+                  disabled={!filters.dayOfWeek}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    filters.dayOfWeek 
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M19 9l-7 7-7-7" 
-                  />
-                </svg>
-                <span>필터 {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}</span>
-              </button>
+                  전체 요일 보기
+                </button>
+                
+                {/* 필터 초기화 버튼 */}
+                <button
+                  onClick={handleResetFilters}
+                  disabled={activeFilterCount === 0}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    activeFilterCount > 0 
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  필터 초기화
+                </button>
+
+                {/* 필터 토글 버튼 */}
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 font-medium"
+                >
+                  <svg 
+                    className={`w-5 h-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M19 9l-7 7-7-7" 
+                    />
+                  </svg>
+                  <span>필터 {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}</span>
+                </button>
+                </div>
+              )}
             </div>
 
             {/* 필터 섹션 */}

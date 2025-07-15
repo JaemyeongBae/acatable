@@ -29,6 +29,14 @@ export default function MyPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPresetSettings, setShowPresetSettings] = useState(false)
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [passwordChangeForm, setPasswordChangeForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordChangeLoading, setPasswordChangeLoading] = useState(false)
+  const [passwordChangeError, setPasswordChangeError] = useState('')
 
   // 학원 정보 로딩
   useEffect(() => {
@@ -106,6 +114,69 @@ export default function MyPage() {
     }
   }
 
+  // 비밀번호 변경 핸들러
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    const { currentPassword, newPassword, confirmPassword } = passwordChangeForm
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordChangeError('모든 필드를 입력해주세요.')
+      return
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordChangeError('새 비밀번호가 일치하지 않습니다.')
+      return
+    }
+    
+    if (newPassword.length < 6) {
+      setPasswordChangeError('새 비밀번호는 최소 6자 이상이어야 합니다.')
+      return
+    }
+    
+    setPasswordChangeLoading(true)
+    setPasswordChangeError('')
+    
+    try {
+      console.log('비밀번호 변경 요청 전송:', { academyCode, type: 'current' })
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          academyCode,
+          currentPassword,
+          newPassword,
+          type: 'current'
+        }),
+      })
+      
+      console.log('응답 상태:', response.status)
+      const data = await response.json()
+      console.log('응답 데이터:', data)
+      
+      if (data.success) {
+        alert('비밀번호가 성공적으로 변경되었습니다.')
+        setShowPasswordChange(false)
+        setPasswordChangeForm({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        })
+      } else {
+        console.log('비밀번호 변경 실패:', data.message)
+        setPasswordChangeError(data.message || '비밀번호 변경에 실패했습니다.')
+      }
+    } catch (err) {
+      console.error('비밀번호 변경 중 에러:', err)
+      setPasswordChangeError('비밀번호 변경 중 오류가 발생했습니다.')
+    } finally {
+      setPasswordChangeLoading(false)
+    }
+  }
+
   // 비밀번호 입력 화면
   if (!isAuthenticated) {
     return (
@@ -124,7 +195,7 @@ export default function MyPage() {
                 {academyInfo?.academyName || academyCode} 마이페이지
               </p>
               <p className="text-sm text-gray-500 mt-2">
-                관리자 비밀번호 또는 Admin 마스터 비밀번호를 입력하세요
+                관리자 비밀번호를 입력하세요
               </p>
             </div>
 
@@ -138,7 +209,7 @@ export default function MyPage() {
               
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  관리자 비밀번호 / Admin 마스터 비밀번호
+                  관리자 비밀번호
                 </label>
                 <input
                   type="password"
@@ -160,14 +231,22 @@ export default function MyPage() {
               </button>
             </form>
 
-            {/* 돌아가기 링크 */}
-            <div className="mt-6 text-center">
+            {/* 비밀번호 찾기 및 돌아가기 링크 */}
+            <div className="mt-6 space-y-3 text-center">
               <Link 
-                href={`/${academyCode}`}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                href={`/${academyCode}/password-recovery`}
+                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
               >
-                ← 시간표 페이지로 돌아가기
+                비밀번호를 잊으셨나요?
               </Link>
+              <div>
+                <Link 
+                  href={`/${academyCode}`}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  ← 시간표 페이지로 돌아가기
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -352,6 +431,32 @@ export default function MyPage() {
               </div>
             </div>
 
+            {/* 보안 설정 */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">보안 설정</h2>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowPasswordChange(true)}
+                  className="w-full flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center mr-3">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
+                    <span className="font-medium text-red-900">비밀번호 변경</span>
+                  </div>
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <p className="text-sm text-gray-600 px-3">
+                  관리자 비밀번호를 안전하게 변경하세요.
+                </p>
+              </div>
+            </div>
+
             {/* 개발 중 기능 */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">개발 중 기능</h2>
@@ -380,6 +485,89 @@ export default function MyPage() {
           academyId={academyInfo.academyId}
           onClose={() => setShowPresetSettings(false)}
         />
+      )}
+
+      {/* 비밀번호 변경 모달 */}
+      {showPasswordChange && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">비밀번호 변경</h3>
+            
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              {passwordChangeError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-600 text-sm">{passwordChangeError}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  현재 비밀번호
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.currentPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  새 비밀번호
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.newPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  minLength={6}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">최소 6자 이상 입력해주세요</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  새 비밀번호 확인
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.confirmPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  required
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordChange(false)
+                    setPasswordChangeForm({
+                      currentPassword: '',
+                      newPassword: '',
+                      confirmPassword: ''
+                    })
+                    setPasswordChangeError('')
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordChangeLoading}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                >
+                  {passwordChangeLoading ? '변경 중...' : '변경'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

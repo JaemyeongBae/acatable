@@ -67,6 +67,13 @@ export default function ScheduleGridView({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showEmptyRooms, setShowEmptyRooms] = useState(false)
+  const [showAllDays, setShowAllDays] = useState(false)
+  const [isClient, setIsClient] = useState(false)
+
+  // 클라이언트 사이드 체크
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // 시간표 및 강의실 데이터 가져오기
   useEffect(() => {
@@ -142,6 +149,15 @@ export default function ScheduleGridView({
 
     return grouped
   }, [schedules])
+
+  // 표시할 요일들 필터링 (전체 보기가 체크되지 않은 경우 시간표가 있는 요일만)
+  const visibleDays = React.useMemo(() => {
+    // 서버 사이드에서는 항상 모든 요일 표시 (hydration 에러 방지)
+    if (!isClient || showAllDays) {
+      return DAYS_ORDER
+    }
+    return DAYS_ORDER.filter(day => groupedSchedules[day].length > 0)
+  }, [groupedSchedules, showAllDays, isClient])
 
   // 같은 시간대의 수업들을 그룹화 (빈 강의실 포함)
   const timeGroupedSchedules = React.useMemo(() => {
@@ -277,21 +293,37 @@ export default function ScheduleGridView({
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold text-gray-900">주간 시간표 - 그리드 뷰</h2>
           
-          {/* 빈 강의실 보기 옵션 */}
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showEmptyRooms}
-              onChange={(e) => setShowEmptyRooms(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-            />
-            <span className="text-sm text-gray-700">빈 강의실 보기</span>
-          </label>
+          {/* 옵션들 */}
+          {isClient && (
+            <div className="flex items-center space-x-4">
+              {/* 전체 보기 옵션 */}
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showAllDays}
+                  onChange={(e) => setShowAllDays(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <span className="text-sm text-gray-700">전체 보기</span>
+              </label>
+              
+              {/* 빈 강의실 보기 옵션 */}
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showEmptyRooms}
+                  onChange={(e) => setShowEmptyRooms(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <span className="text-sm text-gray-700">빈 강의실 보기</span>
+              </label>
+            </div>
+          )}
         </div>
         
         {/* 그리드 헤더 */}
-        <div className="grid grid-cols-7 gap-2 mb-4">
-          {DAYS_ORDER.map(day => (
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mb-4">
+          {visibleDays.map(day => (
             <div key={day} className="text-center">
               <h3 className="text-sm font-semibold text-gray-800 py-2 bg-gray-50 rounded-t-lg">
                 {DayOfWeekKorean[day]}
@@ -305,7 +337,7 @@ export default function ScheduleGridView({
 
         {/* 그리드 컨텐츠 */}
         <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
-          {DAYS_ORDER.map(day => {
+          {visibleDays.map(day => {
             const daySchedules = groupedSchedules[day]
             
             return (
@@ -318,9 +350,11 @@ export default function ScheduleGridView({
                 </div>
 
                 {timeGroupedSchedules[day].length === 0 ? (
-                  <div className="flex items-center justify-center h-24 text-gray-400 text-xs">
-                    <p>시간표 없음</p>
-                  </div>
+                  (!isClient || showAllDays) ? (
+                    <div className="flex items-center justify-center h-24 text-gray-400 text-xs">
+                      <p>시간표 없음</p>
+                    </div>
+                  ) : null
                 ) : (
                   <div className="space-y-3">
                     {timeGroupedSchedules[day].map((group, groupIndex) => (

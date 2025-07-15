@@ -164,16 +164,31 @@ BEGIN
         RETURN;
     END IF;
     
-    -- 비밀번호 검증
-    IF crypt(p_password, account_record.password) = account_record.password THEN
+    -- 비밀번호 검증 (bcrypt와 crypt 방식 모두 지원)
+    -- bcrypt 해시는 $2b$로 시작하므로 이를 기준으로 구분
+    IF account_record.password IS NULL THEN
+        RETURN QUERY SELECT NULL::TEXT, NULL::TEXT, NULL::TEXT, FALSE, '비밀번호가 설정되지 않았습니다.';
+    ELSIF LEFT(account_record.password, 4) = '$2b$' OR LEFT(account_record.password, 4) = '$2a$' THEN
+        -- bcrypt 해시인 경우: JavaScript에서 검증해야 하므로 성공으로 처리
+        -- 실제 bcrypt 검증은 Node.js API에서 수행
         RETURN QUERY SELECT 
             account_record.id, 
             account_record.academy_id, 
             account_record.academy_name, 
             TRUE, 
-            '로그인 성공';
+            'bcrypt_verification_needed';
     ELSE
-        RETURN QUERY SELECT NULL::TEXT, NULL::TEXT, NULL::TEXT, FALSE, '비밀번호가 틀렸습니다.';
+        -- 기존 crypt 방식 검증
+        IF crypt(p_password, account_record.password) = account_record.password THEN
+            RETURN QUERY SELECT 
+                account_record.id, 
+                account_record.academy_id, 
+                account_record.academy_name, 
+                TRUE, 
+                '로그인 성공';
+        ELSE
+            RETURN QUERY SELECT NULL::TEXT, NULL::TEXT, NULL::TEXT, FALSE, '비밀번호가 틀렸습니다.';
+        END IF;
     END IF;
 END;
 $$ language 'plpgsql';

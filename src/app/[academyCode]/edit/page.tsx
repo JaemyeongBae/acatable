@@ -3,35 +3,17 @@
 
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import ScheduleForm from '@/components/schedule/ScheduleForm'
+import CalendarView from '@/components/schedule/CalendarView'
+import ScheduleDetailModal from '@/components/schedule/ScheduleDetailModal'
+import ScheduleGridView from '@/components/schedule/ScheduleGridView'
 import { DayOfWeek } from '@/types'
-
-// 큰 컴포넌트들을 dynamic import로 로드
-const ScheduleForm = dynamic(() => import('@/components/schedule/ScheduleForm'), {
-  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
-  ssr: false
-})
-
-const CalendarView = dynamic(() => import('@/components/schedule/CalendarView'), {
-  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
-  ssr: false
-})
-
-const ScheduleDetailModal = dynamic(() => import('@/components/schedule/ScheduleDetailModal'), {
-  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
-  ssr: false
-})
-
-const ScheduleGridView = dynamic(() => import('@/components/schedule/ScheduleGridView'), {
-  loading: () => <div className="animate-pulse bg-gray-200 h-96 rounded"></div>,
-  ssr: false
-})
 
 interface AcademyInfo {
   academyId: string
@@ -61,7 +43,27 @@ interface FilterOptions {
 }
 
 // 학원별 시간표 관리 컴포넌트
-function AcademyScheduleManager({ academyCode, academyInfo }: { academyCode: string, academyInfo: AcademyInfo | null }) {
+function AcademyScheduleManager({ 
+  academyCode, 
+  academyInfo, 
+  showPasswordChange, 
+  setShowPasswordChange,
+  passwordChangeForm,
+  setPasswordChangeForm,
+  passwordChangeLoading,
+  passwordChangeError,
+  handlePasswordChange
+}: { 
+  academyCode: string, 
+  academyInfo: AcademyInfo | null,
+  showPasswordChange: boolean,
+  setShowPasswordChange: (show: boolean) => void,
+  passwordChangeForm: { currentPassword: string, newPassword: string, confirmPassword: string },
+  setPasswordChangeForm: React.Dispatch<React.SetStateAction<{ currentPassword: string, newPassword: string, confirmPassword: string }>>,
+  passwordChangeLoading: boolean,
+  passwordChangeError: string,
+  handlePasswordChange: (e: React.FormEvent) => Promise<void>
+}) {
   // 컴포넌트 마운트 상태
   const [isMounted, setIsMounted] = useState(false)
   
@@ -317,6 +319,12 @@ function AcademyScheduleManager({ academyCode, academyInfo }: { academyCode: str
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowPasswordChange(true)}
+                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+              >
+                비밀번호 변경
+              </button>
               <Link
                 href={`/${academyCode}/mypage`}
                 className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
@@ -609,16 +617,8 @@ function AcademyScheduleManager({ academyCode, academyInfo }: { academyCode: str
           {/* 시간표 뷰 */}
           <section aria-label="시간표 뷰">
             <ErrorBoundary>
-              <Suspense fallback={
-                <div className="h-96 flex items-center justify-center bg-white rounded-lg border">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                    <p className="text-gray-500">시간표를 불러오는 중...</p>
-                  </div>
-                </div>
-              }>
-                {viewType === 'calendar' ? (
-                  <CalendarView
+              {viewType === 'calendar' ? (
+                <CalendarView
                     academyId={academyInfo?.academyId || ''}
                     viewMode={calendarViewMode}
                     selectedDay={selectedDay}
@@ -688,7 +688,6 @@ function AcademyScheduleManager({ academyCode, academyInfo }: { academyCode: str
                     isReadOnly={false}
                   />
                 )}
-              </Suspense>
             </ErrorBoundary>
           </section>
         </div>
@@ -734,23 +733,14 @@ function AcademyScheduleManager({ academyCode, academyInfo }: { academyCode: str
                   </svg>
                 </button>
               </div>
-              <Suspense fallback={
-                <div className="h-96 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                    <p className="text-gray-500">폼을 불러오는 중...</p>
-                  </div>
-                </div>
-              }>
-                <ScheduleForm
-                  academyId={academyInfo?.academyId || ''}
-                  schedule={formState.selectedSchedule}
-                  onSuccess={(message, formData) => handleFormSuccess(message, formData)}
-                  onCancel={handleCloseForm}
-                  onError={(message) => showNotification('error', message)}
-                  onDelete={handleDeleteSchedule}
-                />
-              </Suspense>
+              <ScheduleForm
+                academyId={academyInfo?.academyId || ''}
+                schedule={formState.selectedSchedule}
+                onSuccess={(message, formData) => handleFormSuccess(message, formData)}
+                onCancel={handleCloseForm}
+                onError={(message) => showNotification('error', message)}
+                onDelete={handleDeleteSchedule}
+              />
             </div>
           </div>
         </div>
@@ -758,12 +748,92 @@ function AcademyScheduleManager({ academyCode, academyInfo }: { academyCode: str
 
       {/* 시간표 상세 모달 */}
       {formState.selectedSchedule && !formState.isOpen && (
-        <Suspense fallback={<div></div>}>
-          <ScheduleDetailModal
-            schedule={formState.selectedSchedule}
-            onClose={handleCloseForm}
-          />
-        </Suspense>
+        <ScheduleDetailModal
+          schedule={formState.selectedSchedule}
+          onClose={handleCloseForm}
+        />
+      )}
+
+      {/* 비밀번호 변경 모달 */}
+      {showPasswordChange && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">비밀번호 변경</h3>
+            
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              {passwordChangeError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-600 text-sm">{passwordChangeError}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  현재 비밀번호
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.currentPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  새 비밀번호
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.newPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  minLength={6}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">최소 6자 이상 입력해주세요</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  새 비밀번호 확인
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.confirmPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordChange(false)
+                    setPasswordChangeForm({
+                      currentPassword: '',
+                      newPassword: '',
+                      confirmPassword: ''
+                    })
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordChangeLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {passwordChangeLoading ? '변경 중...' : '변경'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </main>
   )
@@ -780,6 +850,14 @@ export default function EditPage() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [passwordChangeForm, setPasswordChangeForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordChangeLoading, setPasswordChangeLoading] = useState(false)
+  const [passwordChangeError, setPasswordChangeError] = useState('')
 
   // 학원 정보 로딩
   useEffect(() => {
@@ -854,6 +932,66 @@ export default function EditPage() {
     }
   }
 
+  // 비밀번호 변경 핸들러
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    const { currentPassword, newPassword, confirmPassword } = passwordChangeForm
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordChangeError('모든 필드를 입력해주세요.')
+      return
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordChangeError('새 비밀번호가 일치하지 않습니다.')
+      return
+    }
+    
+    if (newPassword.length < 6) {
+      setPasswordChangeError('새 비밀번호는 최소 6자 이상이어야 합니다.')
+      return
+    }
+    
+    setPasswordChangeLoading(true)
+    setPasswordChangeError('')
+    
+    try {
+      // Sending password change request from edit page
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          academyCode,
+          currentPassword,
+          newPassword,
+          type: 'current'
+        }),
+      })
+      
+      const data = await response.json()
+      // Password change response received from edit page
+      
+      if (data.success) {
+        alert('비밀번호가 성공적으로 변경되었습니다.')
+        setShowPasswordChange(false)
+        setPasswordChangeForm({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        })
+      } else {
+        setPasswordChangeError(data.message || '비밀번호 변경에 실패했습니다.')
+      }
+    } catch (err) {
+      setPasswordChangeError('비밀번호 변경 중 오류가 발생했습니다.')
+    } finally {
+      setPasswordChangeLoading(false)
+    }
+  }
+
   // 비밀번호 입력 화면
   if (!isAuthenticated) {
     return (
@@ -908,14 +1046,22 @@ export default function EditPage() {
               </button>
             </form>
 
-            {/* 돌아가기 링크 */}
-            <div className="mt-6 text-center">
+            {/* 비밀번호 찾기 및 돌아가기 링크 */}
+            <div className="mt-6 space-y-3 text-center">
               <Link 
-                href={`/${academyCode}`}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                href={`/${academyCode}/password-recovery`}
+                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
               >
-                ← 시간표 페이지로 돌아가기
+                비밀번호를 잊으셨나요?
               </Link>
+              <div>
+                <Link 
+                  href={`/${academyCode}`}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  ← 시간표 페이지로 돌아가기
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -924,5 +1070,17 @@ export default function EditPage() {
   }
 
   // 인증 성공 후 시간표 관리 화면
-  return <AcademyScheduleManager academyCode={academyCode} academyInfo={academyInfo} />
+  return (
+    <AcademyScheduleManager 
+      academyCode={academyCode} 
+      academyInfo={academyInfo}
+      showPasswordChange={showPasswordChange}
+      setShowPasswordChange={setShowPasswordChange}
+      passwordChangeForm={passwordChangeForm}
+      setPasswordChangeForm={setPasswordChangeForm}
+      passwordChangeLoading={passwordChangeLoading}
+      passwordChangeError={passwordChangeError}
+      handlePasswordChange={handlePasswordChange}
+    />
+  )
 }
